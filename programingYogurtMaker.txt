@@ -1,0 +1,16 @@
+programing YogurtMaker 
+Arduino Pro Mini Atmega328( 5v 16Mh )
+
+Use usb-serial red board
+
+pro mini   red usb-s
+Vcc        	5v
+Grd 		Grd
+Rx          Tx
+Tx			Rx
+DTR			DTR
+
+Arduino IDE 1.6.9: 
+select 
+board: Arduino Pro or Pro Mini
+processor: Atmega328( 5v 16Mh )

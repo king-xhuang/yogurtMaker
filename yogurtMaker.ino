@@ -29,14 +29,18 @@ float tempC = -127.00;
 const unsigned long minuteInMillis = 60000;
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
-//const float targetTemps[] ={ 37.5, 37.5, 37.5 };
-float targetTemps[] ={ 80.0, 40.0, 36.0 }; //c
- 
+
+
+float targetTemps[] ={ 87.0, 44.0, 45.0 }; //c
+//float targetTemps[] ={ 40.5, 30.0, 30.0 }; //  test data
+
+unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
+//unsigned long stageHoldTimes[] = {1*minuteInMillis, 2*minuteInMillis, 1*minuteInMillis }; //   test data
+
+
 float delta = 0.5; 
 float deltaMax = 3.0;
 float deltaTemp = deltaMax;
-unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 7*60*minuteInMillis };
-//const unsigned long stageHoldTimes[] = {1*minuteInMillis, 1*minuteInMillis, 240*minuteInMillis };
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
@@ -83,6 +87,10 @@ int deltaChangeCount = 0;
 int deltaChangeCountInMin = 60;
 
 float getDelta(){// detla is decresed when temp rising and close to the target
+  if (currentStage == 1) {
+    deltaTemp = 0.5;
+    return deltaTemp;
+  }
   if ( !reachTargetTemp ){
     deltaTemp = deltaMax;    // this make heating stop earlier at the initial heating phase.
   }else{
@@ -318,6 +326,7 @@ void handleCommand( String cmd){
     else{
       Serial.print("unknown command ");
       Serial.println( cmd.length());
+      printMenu();
     }
 }
 
@@ -575,6 +584,11 @@ void toggleLed(int pin){
           if ( p == 1 && currentStage == 0 ){ // sOUS vide
             currentStage = 3; // FORCE stage to 3
             startStage(3);
+            
+            return;
+          }else if ( p == 0 && currentStage == 1 ){ // yogurt maker
+            currentStage = 3; // FORCE stage to 3
+            startStage(3);
             return;
           }
           
@@ -606,7 +620,8 @@ void toggleLed(int pin){
           if (currentStage > 0 && !reachTargetTemp){
             reachTarget();
           }         
-          setRelay(true);      }          
+          setRelay(true);      
+          }          
        }
        //printTemperature(tempC);
     }
@@ -702,4 +717,3 @@ void printTemperature(float tempC)
    }  
    return false; 
  }
-

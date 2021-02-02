@@ -14,3 +14,4 @@ Arduino IDE 1.6.9:
 select 
 board: Arduino Pro or Pro Mini
 processor: Atmega328( 5v 16Mh )
+programmer: USBasp

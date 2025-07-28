@@ -24,7 +24,7 @@ const int sInit = -1;
 int currentStage = -1; 
 int p = -1; //program 0 - yogurt maker, 1 - sous vide
 const  String pNames[] = {"yogurt maker", "sous vide"};
-float tempC = -127.00;
+volatile float tempC = -127.00;
 
 const unsigned long minuteInMillis = 60000;
 const unsigned long hourInMillis = 60*60000;
@@ -85,6 +85,8 @@ int initCheck = 0;
 int checkLimit = 20;
 int deltaChangeCount = 0;
 int deltaChangeCountInMin = 60;
+ 
+volatile boolean reqTemp = false;
 
 float getDelta(){// detla is decresed when temp rising and close to the target
   if (currentStage == 1) {
@@ -194,6 +196,7 @@ void setup() {
   sensors.begin();
   // set the resolution to 10 bit (good enough?)
   sensors.setResolution(thermometer, 10);
+  sensors.setWaitForConversion(false);
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
   Timer1.initialize(500000);         // initialize timer1, and set a 1/2 second period
@@ -473,7 +476,15 @@ void loop() {
   //testDone();
    //testBlink2();
    //testRelay();
-   
+   if(reqTemp){
+      reqTemp = false;
+      sensors.requestTemperatures();
+   }else{
+      if (sensors.isConversionComplete()){
+        tempC = sensors.getTempC(thermometer);
+      }
+   }
+
 }
 
 void run(){
@@ -573,7 +584,8 @@ void toggleLed(int pin){
 }
   
   void checkTemp(){ 
-    //dpLn("checkTemp");   
+     reqTemp = true;  // set flag to trigger an async temp request in loop(); Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
+       //dpLn("checkTemp");   
     if (!isWorkStage(currentStage)) return;
     //dpLn("checkTemp");  
     unsigned long currentMillis = millis();
@@ -599,8 +611,9 @@ void toggleLed(int pin){
           } 
         
       }
-       sensors.requestTemperatures();       
-       tempC = sensors.getTempC(thermometer);
+       //sensors.setWaitForConversion(false);
+      //  sensors.requestTemperatures();    
+      //  tempC = sensors.getTempC(thermometer);
        if (tempC == -127.00) { // cannot get temp from sensor
          currentStage = warn;  
          startStage(warn);   

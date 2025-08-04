@@ -1,7 +1,10 @@
 // include the library code: 
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <PrintEx.h>
 #include "TimerOne.h"
+
+#define TEST_WAVE 1  // generate test pules at pin 11,13 to trace cycle and temp req/conversion, heating time
 
 // Data wire is plugged into pin 10 on the Arduino
 #define ONE_WIRE_BUS 10
@@ -14,24 +17,27 @@ const int LedSize = 3;
 
 const int RelayPIN = 8;
 const int BuzzerPIN = 9;
+const int WTCyclePIN = 11;  // cycle signal plus out
+const int WTReqPIN = 13;    // temp request conversion plus out
 
-const int s0 = 0;
+const int s0 = 0; // stage 0
+const int s1 = 1; // stage 1
+//const int s2 = 2; // stage 2
+const int sComplete = 2; // stage Complete
+const int sWarning = 5;  //  stage warning 
+const int sInit = -1; // initial stage
+volatile int currentStage = sInit; 
 
-const int s1 = 1;
-const int s2 = 2;
-const int warn = 5;
-const int sInit = -1;
-int currentStage = -1; 
 int p = -1; //program 0 - yogurt maker, 1 - sous vide
 const  String pNames[] = {"yogurt maker", "sous vide"};
+
 volatile float tempC = -127.00;
 
-const unsigned long minuteInMillis = 60000;
+const unsigned long minuteInMillis = 60000; 
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
 
-
-float targetTemps[] ={ 87.0, 44.0, 45.0 }; //c
+float targetTemps[] ={ 83.0, 40.0, 41.0 }; //C  36 ~ 43° C (96.8 ~ 109.4°F) for yogert ferment, 71~83°C (160~180°F) for pasteurizing milk
 //float targetTemps[] ={ 40.5, 30.0, 30.0 }; //  test data
 
 unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
@@ -63,7 +69,7 @@ int lastButtonState = HIGH;
 int btDownCount = 0;
 
 unsigned long btPrevMillis = 0;         
-unsigned long btInterval = 100; // button push check interval in millis
+unsigned long btInterval = 1000; // button push check interval in millis
 
 unsigned long tempPrevMillis = 0;
 unsigned long tempInterval = 500;  // tempreture check interval in millis
@@ -81,12 +87,26 @@ boolean debugPrint = false;
 
 boolean initSetTime = false;
 boolean initSetTemp = false;
+
 int initCheck = 0;
 int checkLimit = 20;
 int deltaChangeCount = 0;
 int deltaChangeCountInMin = 60;
+
+const uint8_t TickCountMax = 50;
+const uint8_t HalfCycle = TickCountMax/2;
+const uint8_t ReqTempCount = 30; // (TickCountMax - ReqTempCount) * 1/timerFrequency  > temp sensor conversion time
+
+volatile uint8_t timerTickCount = 0;
+//uint8_t heatingTickCount = 0;
+uint8_t heatingLevel = 0;  // from 0 to  TickCountMax 
+
+const uint8_t trsIdal = 0;
+const uint8_t trsWaitForComplete = 2;
+uint8_t tempReadStatus = trsIdal; //idal,  1 - send req, 2 - wait, 3 - completed
  
-volatile boolean reqTemp = false;
+volatile unsigned long reqTempTime = 0; 
+PrintEx PExSerial = Serial; //Wrap the Serial object in a PrintEx interface.
 
 float getDelta(){// detla is decresed when temp rising and close to the target
   if (currentStage == 1) {
@@ -114,23 +134,26 @@ String getPName(int p){
 }
 // set initial condition for a stage
 void startStage(int sid){  // start a new stage
+    
     String s = "#### start Stage ";
     s += String(sid);
     Serial.println(s);
     if (!isWorkStage(sid)) {
-      Serial.println("not a WorkStage");
+      
       setRelay(false);	
-      if(sid == -1 ) {
+      if(sid == sInit) {
         Serial.println("push button to start");
       }
-      else if (sid == 3 ||  sid == warn) {  
+      else if (sid == sComplete ||  sid == sWarning) {  
         Serial.println("##### program done #####");        
-        currentStage = sid;   
+        currentStage = sid;  
+        setRelay(false); 
         setBuzzer(true);    
       }       
+      Serial.println("not a WorkStage");
       return;
     }
-    else
+    else // working stages
     {         
       for (int i = 0; i < 3; i++){
         digitalWrite( stageLedPins[i], LOW);
@@ -144,8 +167,9 @@ void startStage(int sid){  // start a new stage
       setLeds();
       setBuzzer(true);
       Serial.print( "target temp: ");
-      Serial.println(String(targetTempC));
-      Serial.print(" c, hold time: ");
+      Serial.print(String(targetTempC));
+      Serial.println(" C");
+      Serial.print("hold time: ");
       Serial.print(stageHoldTime/minuteInMillis);  
       Serial.println(" minutes");               
 	}
@@ -175,45 +199,72 @@ void setLeds(){
 }
 
 boolean isWorkStage(int sid){
-  return (sid < 3 && sid > -1);
+  return (sid < sComplete && sid > sInit);
 }
 
 boolean isDone(){
-  return (currentStage == 3 || currentStage == warn );
+  return (currentStage == sComplete || currentStage == sWarning );
 }
 
 void setup() {
   // start serial port
   Serial.begin(115200);
+ 
   dpLn("#### yogurt maker powered ON ####");
-  // declare pin 9 to be an output:
+  
   pinMode(BuzzerPIN, OUTPUT); 
   pinMode(RelayPIN, OUTPUT);
   pinMode(RedLedPIN, OUTPUT);
   pinMode(YellowLedPIN, OUTPUT);
   pinMode(GreenLedPIN, OUTPUT);
   pinMode(BtPIN, INPUT);
+  #ifdef TEST_WAVE
+    pinMode(WTCyclePIN, OUTPUT); 
+    pinMode(WTReqPIN, OUTPUT);
+  #endif   
   sensors.begin();
   // set the resolution to 10 bit (good enough?)
-  sensors.setResolution(thermometer, 10);
-  sensors.setWaitForConversion(false);
+  sensors.setResolution(thermometer, 10);  
+  sensors.setWaitForConversion(true);
+  reqTempTime = millis();
+  sensors.requestTemperatures();    
+  while(!sensors.isConversionComplete()){
+    delay(10);
+  }
+  tempC = sensors.getTempC(thermometer); 
+  unsigned long convTime = millis() - reqTempTime; 
+  PExSerial.printf("first conversion time = %u  \n", convTime );  
+  printTemperature(tempC);
+  //PExSerial.printf("Temp = %f \n", tempC);
+  if (tempC == -127.00) { // cannot get temp from sensor
+    currentStage = sWarning;  
+    startStage(sWarning);   
+  } 
+  tempReadStatus = trsIdal; 
+  tempC = -127.00;
+
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
-  Timer1.initialize(500000);         // initialize timer1, and set a 1/2 second period
+
+  Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
   //Timer1.pwm(9, 512);                // setup pwm on pin 9, 50% duty cycle
   Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
   attachInterrupt(digitalPinToInterrupt(BtPIN), btDown, FALLING );
+
+  Serial.println("### v2.0 push button to start ###");
 }
 
 void btDown() { // call back for button down
-  // start the program or stop the buzzer
+  // start the program or stop the buzze
+  if (isRebounce()){
+    return;
+  }
   Serial.println("btDown");
-  if (currentStage == -1){
+  if (currentStage == sInit){
     if ( p == -1 ){
       setProgram(0); // set default program to 0, if not set yet.
-    } 
-
-    startStage(0); // push button to kick off first stage
+    }  
+    startStage(s0); // push button to kick off first stage
   } 
   else{
     setBuzzer(false);
@@ -221,8 +272,8 @@ void btDown() { // call back for button down
 }
 void timer1Callback()
 {
-  run();
-  //digitalWrite(LED_BUILTIN, digitalRead(LED_BUILTIN) ^ 1);
+  timerTickCheck();
+ 
 }
 
 /*
@@ -248,9 +299,7 @@ void serialEvent() {
     }
 
   }
-}
-
-
+} 
 
 void printMenu(){
    Serial.println("m    - menu");
@@ -263,11 +312,8 @@ void printMenu(){
    Serial.println("dp   - debug print");
 }
 
-boolean setProgram(){
-  if (currentStage == sInit){
-    timer1ToggleLeds();
-    //setBuzzer(true);
-  }
+boolean checkProgram(){ 
+ 
   if( p == 0 ){
     // Serial.print("start ");
     // Serial.println(getPName(p));
@@ -288,13 +334,13 @@ boolean setProgram(){
       Serial.println("set Temp: st");
       
     }
-    delay(5000);
+   // delay(5000);
     return false;  
   }
   else
   {    
     Serial.println("set program: sp0/sp1");
-    delay(5000);
+    //delay(5000);
     //TODO set default program after 10 checks
     return false;
   } 
@@ -423,7 +469,7 @@ void setTimeInMin(int m){
   Serial.println(" min");
   if (p == 1){
     stageHoldTimes[0] = m*minuteInMillis;
-    stageHoldTimes[1] = 1000;
+    stageHoldTimes[1] = 1000; 
     stageHoldTimes[2] = 1000;
     initSetTime = true;
   }else Serial.println("cannot set time");
@@ -475,31 +521,60 @@ void loop() {
   //run();
   //testDone();
    //testBlink2();
-   //testRelay();
-   if(reqTemp){
-      reqTemp = false;
-      sensors.requestTemperatures();
-   }else{
-      if (sensors.isConversionComplete()){
-        tempC = sensors.getTempC(thermometer);
-      }
-   }
+   //testRelay(); 
+  if (tempReadStatus == trsWaitForComplete && sensors.isConversionComplete()){
+    tempC = sensors.getTempC(thermometer);
+    tempReadStatus = trsIdal;
+    #ifdef TEST_WAVE
+    digitalWrite(WTReqPIN, LOW);  // request begin 
+    #endif
+    if (debugPrint){  
+      PExSerial.printf("conversion time = %u \n",  millis() - reqTempTime); 
+    } 
+  } 
 
 }
 
-void run(){
-  if(setProgram()){
-    //checkDone();
-    if (isDone()){
-         
-      setDoneSignal();       
+void timerTickCheck(){ 
+      //  if (!isWorkStage(currentStage)){
+      //    blinkStageLed();
+      //  } 
+  timerTickCount++; 
+  if (timerTickCount >= TickCountMax ){// restart a new a heating cycle
+        //if(checkProgram()){ 
+        //   timer1ToggleLeds();
+        //   //setBuzzer(true);
+        // }          
+       // }
+      #ifdef TEST_WAVE 
+        digitalWrite(WTCyclePIN, HIGH); // cycle begin
+      #endif
+      startCycle();
+      blinkStageLed();
+  }else{ 
+    if (timerTickCount == ReqTempCount ){
+      #ifdef TEST_WAVE
+      digitalWrite(WTReqPIN, HIGH);  // request begin
+      #endif
+      reqTempTime = millis();
+      sensors.requestTemperatures();
+      tempReadStatus = trsWaitForComplete;  // sent an async temp request; Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
+    }
+    #ifdef TEST_WAVE
+      if(timerTickCount == HalfCycle){
+        digitalWrite(WTCyclePIN,  LOW); // half cycle
+      }
+    #endif
+    
+    if (isWorkStage(currentStage)){
+      checkHeatingPower();
     }
     else{
-      //checkButton();
-      checkTemp(); 
-      blinkStageLed();
-    }    
-  }  
+      setRelay(false);
+    }
+    
+  }     
+    
 }
 
 
@@ -554,7 +629,7 @@ void checkDone(){
          } 
       }
     }
-    else if (currentStage == warn){
+    else if (currentStage == sWarning){
       // setRelay(false);
       // setBuzzer(true);
       // while(true){
@@ -582,63 +657,118 @@ void toggleLed(int pin){
    else ledState = HIGH;
    digitalWrite(pin, ledState );
 }
-  
-  void checkTemp(){ 
-     reqTemp = true;  // set flag to trigger an async temp request in loop(); Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
-       //dpLn("checkTemp");   
-    if (!isWorkStage(currentStage)) return;
-    //dpLn("checkTemp");  
+void startCycle(){    
+    heatingLevel = 0;
+    setRelay(false);
+
     unsigned long currentMillis = millis();
-    if(currentMillis - tempPrevMillis > tempInterval) {// check Temperature 
-      tempPrevMillis = currentMillis;   
-      if (reachTargetTemp && (currentMillis - stageHoldStartTime) > stageHoldTime){// move to next stage
-          
-          if ( p == 1 && currentStage == 0 ){ // sOUS vide
-            currentStage = 3; // FORCE stage to 3
-            startStage(3);
-            
-            return;
-          }else if ( p == 0 && currentStage == 1 ){ // yogurt maker
-            currentStage = 3; // FORCE stage to 3
-            startStage(3);
-            return;
-          }
-          
-          startStage(currentStage + 1);
-          if ( p == 0 && currentStage == 3 ){ // YOGURT MAKER             
-            setRelay(false);
-            return; 
-          } 
-        
-      }
-       //sensors.setWaitForConversion(false);
-      //  sensors.requestTemperatures();    
-      //  tempC = sensors.getTempC(thermometer);
-       if (tempC == -127.00) { // cannot get temp from sensor
-         currentStage = warn;  
-         startStage(warn);   
-         return;    
-        //  setRelay(false);
-        //  setBuzzer(true);
-         
-       }else{   // do get temp from sensor          
-         // turn on/off relay
-         if ( tempC > ( targetTempC - getDelta()) ) {
-           if (currentStage == 0 && !reachTargetTemp){
-             reachTarget();
-           }
-           setRelay(false);
-         }
-         else{   
-          if (currentStage > 0 && !reachTargetTemp){
-            reachTarget();
-          }         
-          setRelay(true);      
-          }          
-       }
-       //printTemperature(tempC);
+    timerTickCount = 0;
+    if(debugPrint){
+      PExSerial.printf("heater power cycle = %u \n", currentMillis - tempPrevMillis); 
+      PExSerial.print("Temp = ");
+      PExSerial.print(tempC);
+      PExSerial.println(" C"); 
     }
+    
+    tempPrevMillis = currentMillis;
+
+      //checkDone();
+    if (isDone()){ 
+      setDoneSignal();  
+      return;     
+    }
+    if (!isWorkStage(currentStage)) return;
+
+    if (reachTargetTemp && (currentMillis - stageHoldStartTime) > stageHoldTime){// move to next stage
+          
+      if ( p == 1 && currentStage == s0 ){ // sOUS vide
+        currentStage = sComplete; // FORCE stage to sComplete
+        startStage(currentStage);        
+        return;
+      }else if ( p == 0 ){ // yogurt maker
+        if(currentStage == s1 ){ 
+          currentStage = sComplete; // FORCE stage tosComplete
+          startStage(currentStage);
+          return;
+        }else if(currentStage == s0 ){
+          currentStage = s1;
+          startStage(currentStage);
+        }
+        else return;
+      }   
+    }
+      
+    if (tempC == -127.00) { // cannot get temp from sensor
+      currentStage = sWarning;  
+      startStage(sWarning);   
+      return;    
+    }else{   // do get temp from sensor          
+             // turn on/off relay
+      float tempDiff = targetTempC - tempC;
+      // get sensor temp and reset heating level
+      if(tempDiff <= 0.0){ // temp higher than target
+        if (currentStage == s0 && !reachTargetTemp){
+          reachTarget();
+        }
+        heatingLevel = 0;
+        setRelay(false);
+      }else{ // temp lower than target 
+        if (currentStage > s0 && !reachTargetTemp){
+          reachTarget();
+        }         
+        //heatingLevel = ( tempDiff * TickCountMax )/tempDiff
+        if (tempDiff < 2){
+          heatingLevel = 2;
+        }else if (tempDiff < 5){
+          heatingLevel = 20; //TODO
+        }else if (tempDiff < 7){
+          heatingLevel = 40; //TODO
+        }else{
+          heatingLevel = 50; //TODO
+        }         
+        setRelay(true);
+      }
+      if(debugPrint){
+        PExSerial.printf("heatingLevel= %u \n", heatingLevel);
+      }
+        
+      // if ( tempC > ( targetTempC - getDelta()) ) {
+      //   if (currentStage == 0 && !reachTargetTemp){
+      //     reachTarget();
+      //   }
+      //   heatingLevel = 0;
+      //   setRelay(false);
+      // }
+      // else{   
+      //   if (currentStage > 0 && !reachTargetTemp){
+      //     reachTarget();
+      //   }         
+      //   setRelay(true);      
+      // }          
+    }
+      
+      // control power level 
   }
+  void checkHeatingPower(){ 
+    if(timerTickCount > heatingLevel){
+      // turn off heater
+      setRelay(false);
+    } 
+  }
+  void checkTemp(){ 
+    // if (!isWorkStage(currentStage)) return;
+    // timerTickCount++; 
+    // if (timerTickCount >= TickCountMax ){// restart a new a heating cycle
+    //   startCycle();
+    // }else{ 
+    //   if (timerTickCount == ReqTempCount ){
+    //     tempReadStatus = 1;  // set flag to trigger an async temp request in loop(); Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
+    //   }
+    //   checkHeatingPower();
+    // }    
+       //printTemperature(tempC);
+  }
+    
   void reachTarget(){
   	reachTargetTemp = true;
     Serial.print("#### stage ");
@@ -666,7 +796,7 @@ void printTemperature(float tempC)
   } else {
     Serial.print("currentStage=");
     Serial.println(currentStage);
-    Serial.print(" C: ");
+    Serial.print("C: ");
     Serial.print(tempC);
     Serial.print(" F: ");
     Serial.println(DallasTemperature::toFahrenheit(tempC));
@@ -677,7 +807,15 @@ void printTemperature(float tempC)
   
 }
   
- 
+bool isRebounce(){
+  unsigned long currentMillis = millis();
+  if((currentMillis - btPrevMillis) > btInterval){
+    btPrevMillis = currentMillis;
+    return false;
+  }else{
+    return true;
+  }
+}
  void checkButton(){
    unsigned long currentMillis = millis();
     if(currentMillis - btPrevMillis > btInterval) {

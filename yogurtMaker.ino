@@ -7,14 +7,17 @@
 #define TEST_WAVE 1  // generate test pules at pin 11,13 to trace cycle and temp req/conversion, heating time
 
 // Data wire is plugged into pin 10 on the Arduino
-#define ONE_WIRE_BUS 10
+#define ONE_WIRE_BUS 10  // temp sensor input pin
 
-const int BtPIN= 2;
-const int RedLedPIN =  3;
+
+const int RedLedPIN =  6;
 const int YellowLedPIN =  4;
 const int GreenLedPIN =  5;
-const int LedSize = 3;
+const int LedSize = 2;
 
+const int BtPIN= 2;
+const int acSyncPIN =  3;
+const int powerLevelPIN =  7;
 const int RelayPIN = 8;
 const int BuzzerPIN = 9;
 const int WTCyclePIN = 11;  // cycle signal plus out
@@ -37,11 +40,11 @@ const unsigned long minuteInMillis = 60000;
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
 
-float targetTemps[] ={ 83.0, 40.0, 41.0 }; //C  36 ~ 43° C (96.8 ~ 109.4°F) for yogert ferment, 71~83°C (160~180°F) for pasteurizing milk
-//float targetTemps[] ={ 40.5, 30.0, 30.0 }; //  test data
+//float targetTemps[] ={ 83.0, 39.0, 40.0 }; //C  36 ~ 43° C (96.8 ~ 109.4°F) for yogert ferment, 71~83°C (160~180°F) for pasteurizing milk
+float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
 
-unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
-//unsigned long stageHoldTimes[] = {1*minuteInMillis, 2*minuteInMillis, 1*minuteInMillis }; //   test data
+//unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
+unsigned long stageHoldTimes[] = {10*minuteInMillis, 2*minuteInMillis, 1*minuteInMillis }; //   test data
 
 
 float delta = 0.5; 
@@ -64,21 +67,21 @@ int ledState = LOW;             // ledState used to set the LED
 unsigned long ledPrevMillis = 0;         
 unsigned long ledInterval = 500; // led flush interval in millis
 
-int buttonState = HIGH; 
-int lastButtonState = HIGH;
-int btDownCount = 0;
+volatile int buttonState = HIGH; 
+volatile int lastButtonState = HIGH;
+volatile int btDownCount = 0;
 
 unsigned long btPrevMillis = 0;         
 unsigned long btInterval = 1000; // button push check interval in millis
 
 unsigned long tempPrevMillis = 0;
 unsigned long tempInterval = 500;  // tempreture check interval in millis
-float targetTempC = 0;
+volatile float targetTempC = 0;
 int stageLedPin = RedLedPIN;
 
 unsigned long stageStartTime = 0;
 unsigned long stageHoldStartTime = 0;
-boolean reachTargetTemp = false;
+volatile boolean reachTargetTemp = false;
 unsigned long stageHoldTime = 1;
 
 String inputString = "";         // a String to hold incoming data
@@ -93,17 +96,23 @@ int checkLimit = 20;
 int deltaChangeCount = 0;
 int deltaChangeCountInMin = 60;
 
-const uint8_t TickCountMax = 50;
+const uint8_t TickCountMax = 60; // 30 ac power line cycle
 const uint8_t HalfCycle = TickCountMax/2;
-const uint8_t ReqTempCount = 30; // (TickCountMax - ReqTempCount) * 1/timerFrequency  > temp sensor conversion time
+const uint8_t ReqTempCount = 38; // (TickCountMax - ReqTempCount) * 1/timerFrequency  > temp sensor conversion time
 
 volatile uint8_t timerTickCount = 0;
 //uint8_t heatingTickCount = 0;
-uint8_t heatingLevel = 0;  // from 0 to  TickCountMax 
+volatile uint8_t heatingLevel = 0;  // from 0 to  TickCountMax 
+ 
+const uint8_t HeatingTrendNone = 0;  // heater not working
+const uint8_t HeatingTrendRise = 1;  // heater keeps on
+const uint8_t HeatingTrendFall = 2;  // heater keeps off
+const uint8_t HeatingTrendHold = 3;  // heater keeps holding temp
+volatile uint8_t heatingTrend = HeatingTrendNone;
 
 const uint8_t trsIdal = 0;
 const uint8_t trsWaitForComplete = 2;
-uint8_t tempReadStatus = trsIdal; //idal,  1 - send req, 2 - wait, 3 - completed
+volatile uint8_t tempReadStatus = trsIdal; //idal,  1 - send req, 2 - wait, 3 - completed
  
 volatile unsigned long reqTempTime = 0; 
 PrintEx PExSerial = Serial; //Wrap the Serial object in a PrintEx interface.
@@ -139,25 +148,31 @@ void startStage(int sid){  // start a new stage
     s += String(sid);
     Serial.println(s);
     if (!isWorkStage(sid)) {
-      
-      setRelay(false);	
+      heatingTrend = HeatingTrendNone;
+      heaterOn(false);	
       if(sid == sInit) {
         Serial.println("push button to start");
       }
-      else if (sid == sComplete ||  sid == sWarning) {  
-        Serial.println("##### program done #####");        
+      else if (sid == sComplete ||  sid == sWarning ) {  
+        if (sid == sComplete) Serial.println("##### program well done #####");    
+        else  Serial.println("##### program end with Warning !!! #####");  
+
         currentStage = sid;  
-        setRelay(false); 
         setBuzzer(true);    
       }       
-      Serial.println("not a WorkStage");
+       
       return;
     }
     else // working stages
     {         
-      for (int i = 0; i < 3; i++){
+      for (int i = 0; i < LedSize; i++){
         digitalWrite( stageLedPins[i], LOW);
       }      
+      if(sid == s0){
+        heatingTrend = HeatingTrendRise;
+      }else if(sid == s1 && p == 0){ // yogurt maker stage 1
+        heatingTrend = HeatingTrendFall;
+      }
       reachTargetTemp = false;
       stageStartTime = millis();
       stageHoldTime = stageHoldTimes[sid];
@@ -176,7 +191,7 @@ void startStage(int sid){  // start a new stage
 }
 
 void setDoneSignal(){
-  setRelay(false);
+  heaterOn(false);
   timer1ToggleLeds();
 }
 void timer1ToggleLeds(){
@@ -213,11 +228,16 @@ void setup() {
   dpLn("#### yogurt maker powered ON ####");
   
   pinMode(BuzzerPIN, OUTPUT); 
-  pinMode(RelayPIN, OUTPUT);
+  pinMode(RelayPIN, OUTPUT);  // control relay
+  pinMode(powerLevelPIN, OUTPUT); // control Triac
+  heaterOn(false);
+
   pinMode(RedLedPIN, OUTPUT);
-  pinMode(YellowLedPIN, OUTPUT);
-  pinMode(GreenLedPIN, OUTPUT);
-  pinMode(BtPIN, INPUT);
+  pinMode(YellowLedPIN, OUTPUT);  
+  //pinMode(GreenLedPIN, OUTPUT);
+
+  pinMode(BtPIN, INPUT_PULLUP);
+  pinMode(acSyncPIN, INPUT);
   #ifdef TEST_WAVE
     pinMode(WTCyclePIN, OUTPUT); 
     pinMode(WTReqPIN, OUTPUT);
@@ -246,15 +266,16 @@ void setup() {
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
 
-  Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
+  //Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
   //Timer1.pwm(9, 512);                // setup pwm on pin 9, 50% duty cycle
-  Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
-  attachInterrupt(digitalPinToInterrupt(BtPIN), btDown, FALLING );
+  //Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
+  attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
+  attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v2.0 push button to start ###");
+  Serial.println("### v2.5 push button to start ###");
 }
 
-void btDown() { // call back for button down
+void onButtonDown() { // call back for button down
   // start the program or stop the buzze
   if (isRebounce()){
     return;
@@ -270,10 +291,12 @@ void btDown() { // call back for button down
     setBuzzer(false);
   }        
 }
+void onMainLineSync(){
+   timerTickCheck();
+}
 void timer1Callback()
 {
-  timerTickCheck();
- 
+  timerTickCheck(); 
 }
 
 /*
@@ -460,7 +483,7 @@ void setHeatingTemp(float t){
     targetTemps[1] = 0.0;
     targetTemps[2] = 0.0; 
     initSetTemp = true;
-  }else Serial.println("cannot set temp");
+  }else Serial.println("cannot set temp, set p =1 first");
 }
 
 void setTimeInMin(int m){
@@ -472,7 +495,7 @@ void setTimeInMin(int m){
     stageHoldTimes[1] = 1000; 
     stageHoldTimes[2] = 1000;
     initSetTime = true;
-  }else Serial.println("cannot set time");
+  }else Serial.println("cannot set time, set p =1 first");
 }
 
 
@@ -481,22 +504,37 @@ void printStatus(){
   if (p == 1 || p == 0 ){
     Serial.println(getPName(p));
     // temp and time setting
-    for(int i = 0; i < 3; i++){
-      
+    for(int i = 0; i < 2; i++){ 
       String s = "stage "; 
       s += String(i);
       s += ", Temp ";
       s += String(targetTemps[i]);
       s += ", time ";       
       s += String(stageHoldTimes[i]/minuteInMillis);
-      s += " min";      
-      
+      s += " min";    
       Serial.println(s);
     }
-    Serial.print("current tempreture delta ");
-    Serial.println(deltaTemp);
-    Serial.print("Relay on ");
-    Serial.println(digitalRead(RelayPIN));
+    Serial.print("heating trend:  ");
+    if (heatingTrend == HeatingTrendRise){
+      Serial.println(" Rise");
+    }else if (heatingTrend == HeatingTrendHold){
+      Serial.println(" Hold");
+    } 
+    else if (heatingTrend == HeatingTrendFall){
+      Serial.println(" Fall");
+    } 
+    else{
+       Serial.println(" None");
+    }
+    Serial.print(" power level ");
+    Serial.println(heatingLevel);
+    Serial.print("Power on ");
+    if(heatingTrend == HeatingTrendRise){
+      Serial.println(digitalRead(RelayPIN));
+    }else{
+      Serial.println(digitalRead(powerLevelPIN));
+    }
+    
     if(isWorkStage(currentStage) ){
       int timePassed =  (millis() - stageStartTime)/minuteInMillis;
       // current stage, temp, time passed.
@@ -570,7 +608,7 @@ void timerTickCheck(){
       checkHeatingPower();
     }
     else{
-      setRelay(false);
+      heaterOn(false);
     }
     
   }     
@@ -600,9 +638,9 @@ void testBlink2(){
   
 void testRelay(){ 
     while(true){
-      setRelay(true);
+      heaterOn(true);
       delay(2000);
-      setRelay(false);
+      heaterOn(false);
       delay(2000);
     }    
   }
@@ -617,20 +655,20 @@ void checkDone(){
 }  
   void blinkStageLed(){
     if (currentStage == sInit){
-      setRelay(false);
+      heaterOn(false);
       unsigned long currentMillis = millis();
       if(currentMillis - ledPrevMillis > ledInterval) {
 	       dpLn("push button to start!!!!");
 	       ledPrevMillis = currentMillis;   
          if (ledState == HIGH) ledState = LOW;
          else ledState = HIGH;
-   	     for (int i = 0; i < 3; i++){
+   	     for (int i = 0; i < LedSize; i++){
            digitalWrite( stageLedPins[i], ledState);
          } 
       }
     }
     else if (currentStage == sWarning){
-      // setRelay(false);
+      // heaterOn(false);
       // setBuzzer(true);
       // while(true){
       //    for (int i = 0; i < LedSize; i++){
@@ -658,9 +696,14 @@ void toggleLed(int pin){
    digitalWrite(pin, ledState );
 }
 void startCycle(){    
-    heatingLevel = 0;
-    setRelay(false);
-
+    if (heatingTrend == HeatingTrendNone 
+    ||  heatingTrend == HeatingTrendFall
+    ||  heatingTrend == HeatingTrendHold) {
+      heatingLevel = 0;
+      heaterOn(false);
+    } // for heatingTrend == HeatingTrendRise, do nothing 
+    
+        
     unsigned long currentMillis = millis();
     timerTickCount = 0;
     if(debugPrint){
@@ -701,58 +744,61 @@ void startCycle(){
     if (tempC == -127.00) { // cannot get temp from sensor
       currentStage = sWarning;  
       startStage(sWarning);   
-      return;    
-    }else{   // do get temp from sensor          
-             // turn on/off relay
-      float tempDiff = targetTempC - tempC;
-      // get sensor temp and reset heating level
-      if(tempDiff <= 0.0){ // temp higher than target
-        if (currentStage == s0 && !reachTargetTemp){
-          reachTarget();
-        }
-        heatingLevel = 0;
-        setRelay(false);
-      }else{ // temp lower than target 
-        if (currentStage > s0 && !reachTargetTemp){
-          reachTarget();
-        }         
-        //heatingLevel = ( tempDiff * TickCountMax )/tempDiff
-        if (tempDiff < 2){
-          heatingLevel = 2;
-        }else if (tempDiff < 5){
-          heatingLevel = 20; //TODO
-        }else if (tempDiff < 7){
-          heatingLevel = 40; //TODO
-        }else{
-          heatingLevel = 50; //TODO
-        }         
-        setRelay(true);
-      }
-      if(debugPrint){
-        PExSerial.printf("heatingLevel= %u \n", heatingLevel);
-      }
-        
-      // if ( tempC > ( targetTempC - getDelta()) ) {
-      //   if (currentStage == 0 && !reachTargetTemp){
-      //     reachTarget();
-      //   }
-      //   heatingLevel = 0;
-      //   setRelay(false);
-      // }
-      // else{   
-      //   if (currentStage > 0 && !reachTargetTemp){
-      //     reachTarget();
-      //   }         
-      //   setRelay(true);      
-      // }          
+      return; 
     }
-      
-      // control power level 
+       // do get temp from sensor          
+             // turn on/off relay
+    float tempDiff = targetTempC - tempC;
+
+    // get sensor temp and reset heating level
+    if(tempDiff <= 0.0){ // temp higher than target
+      if (currentStage == s0 && !reachTargetTemp){
+        reachTarget();
+      }
+      heatingLevel = 0;// TODO use PID ???
+      heaterOn(false); // TODO use PID ???
+    }else{ // temp lower than target 
+      if (currentStage > s0 && !reachTargetTemp){ // temp falling to target 
+        reachTarget();
+      }    
+      //TODO use PID ??? 
+      //heatingLevel = ( tempDiff * TickCountMax )/tempDiff 
+      if(heatingTrend == HeatingTrendRise){
+        if (tempDiff <=  3){ 
+           heatingTrend = HeatingTrendHold;
+           Serial.print("### Turned Relay Off !!! ####");
+           heatingLevel = 0;
+           heaterOn(false);
+        }else{
+           heatingLevel = TickCountMax + 1;
+        }
+      }
+      if(heatingTrend != HeatingTrendRise){ // heatingTrend = HeatingTrendHold
+        if ( tempDiff <= 1.5){
+            heatingLevel = 0;
+        }else if (tempDiff < 2.5){
+          heatingLevel = 15; //TODO
+        }else if (tempDiff < 5){             
+          heatingLevel = 30; //TODO
+        }   
+        else if (tempDiff >=  5){             
+          heatingLevel = TickCountMax; //TODO
+        }     
+      }
+      heaterOn(heatingLevel > 0); 
+    }
+    if(debugPrint){
+      PExSerial.printf("heatingLevel= %u \n", heatingLevel);
+    } 
   }
   void checkHeatingPower(){ 
-    if(timerTickCount > heatingLevel){
+    if(heatingTrend == HeatingTrendRise){
+      // never turn off the relay until temp close to target
+      // 
+    }
+    else if(timerTickCount >= heatingLevel ){
       // turn off heater
-      setRelay(false);
+      heaterOn(false);
     } 
   }
   void checkTemp(){ 
@@ -776,17 +822,30 @@ void startCycle(){
     Serial.print(" reach target temp ");  
     Serial.println(String(targetTempC));           
     stageHoldStartTime = millis();
+    heatingTrend = HeatingTrendHold; 
   }
-  // set realy on/off -- true/false
-  void setRelay(boolean on){
-    if (on) {
-       digitalWrite(RelayPIN, HIGH);
-       //dp("Relay ON ");
-    }
-    else{
-       digitalWrite(RelayPIN, LOW);
-       //dp("Relay OFF ");
-    }
+  // set heater on/off -- true/false
+  void heaterOn(boolean on){
+    if (heatingTrend == HeatingTrendRise){
+      digitalWrite(powerLevelPIN, LOW);
+      if (on) {  
+        digitalWrite(RelayPIN, HIGH);
+        //digitalWrite(powerLevelPIN, HIGH);
+      } else{
+        digitalWrite(RelayPIN, LOW); 
+        //digitalWrite(powerLevelPIN, LOW);
+      }
+    }else{ // TODO use triac
+      digitalWrite(RelayPIN, LOW); 
+      if (on) {  
+        //digitalWrite(RelayPIN, HIGH); // TODO use triac
+        digitalWrite(powerLevelPIN, HIGH);
+      } else{
+        //digitalWrite(RelayPIN, LOW); // TODO use triac
+        digitalWrite(powerLevelPIN, LOW);
+      }
+    } 
+    
   }
   
 void printTemperature(float tempC)

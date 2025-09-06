@@ -61,7 +61,8 @@ DallasTemperature sensors(&oneWire);
 // See the tutorial on how to obtain these addresses:
 // http://www.hacktronics.com/Tutorials/arduino-1-wire-address-finder.html
 
-DeviceAddress thermometer = { 0x28, 0x35, 0x88, 0x43, 0x05, 0x00, 0x00, 0xB0 };
+//DeviceAddress thermometer = { 0x28, 0x35, 0x88, 0x43, 0x05, 0x00, 0x00, 0xB0 };
+DeviceAddress thermometer; // = { 0x28, 0x4E, 0xF7, 0x07, 0xD6, 0x01, 0x3C, 0x18 };
 
 int ledState = LOW;             // ledState used to set the LED
 unsigned long ledPrevMillis = 0;         
@@ -244,14 +245,17 @@ void setup() {
   #endif   
   sensors.begin();
   // set the resolution to 10 bit (good enough?)
-  sensors.setResolution(thermometer, 10);  
-  sensors.setWaitForConversion(true);
+  sensors.getAddress(thermometer, 0);
+  sensors.setResolution(thermometer, 10);
+ // sensors.setResolution(thermometer, 10);  
+  sensors.setWaitForConversion(false);
   reqTempTime = millis();
   sensors.requestTemperatures();    
   while(!sensors.isConversionComplete()){
     delay(10);
-  }
-  tempC = sensors.getTempC(thermometer); 
+  } 
+  tempC = sensors.getTempCByIndex(0);
+  //tempC = sensors.getTempC(thermometer); 
   unsigned long convTime = millis() - reqTempTime; 
   PExSerial.printf("first conversion time = %u  \n", convTime );  
   printTemperature(tempC);
@@ -561,7 +565,7 @@ void loop() {
    //testBlink2();
    //testRelay(); 
   if (tempReadStatus == trsWaitForComplete && sensors.isConversionComplete()){
-    tempC = sensors.getTempC(thermometer);
+    tempC = sensors.getTempCByIndex(0);
     tempReadStatus = trsIdal;
     #ifdef TEST_WAVE
     digitalWrite(WTReqPIN, LOW);  // request begin 

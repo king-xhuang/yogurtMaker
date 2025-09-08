@@ -1,8 +1,10 @@
 // include the library code: 
 #include <OneWire.h>
-#include <DallasTemperature.h>
-#include <PrintEx.h>
+//#include <DallasTemperature.h> 
 #include "TimerOne.h"
+#include "Adafruit_MCP3421.h"
+#include <PrintEx.h> 
+#include <math.h>
 
 #define TEST_WAVE 1  // generate test pules at pin 11,13 to trace cycle and temp req/conversion, heating time
 
@@ -34,35 +36,36 @@ volatile int currentStage = sInit;
 int p = -1; //program 0 - yogurt maker, 1 - sous vide
 const  String pNames[] = {"yogurt maker", "sous vide"};
 
-volatile float tempC = -127.00;
+const float InvalidTemp = -127.00;
+volatile float tempC = InvalidTemp;
 
 const unsigned long minuteInMillis = 60000; 
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
 
-//float targetTemps[] ={ 83.0, 39.0, 40.0 }; //C  36 ~ 43° C (96.8 ~ 109.4°F) for yogert ferment, 71~83°C (160~180°F) for pasteurizing milk
+//float targetTemps[] ={ 83.0, 39.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
 float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
 
 //unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
-unsigned long stageHoldTimes[] = {10*minuteInMillis, 2*minuteInMillis, 1*minuteInMillis }; //   test data
+unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 1*minuteInMillis }; //   test data
 
 
 float delta = 0.5; 
 float deltaMax = 3.0;
 float deltaTemp = deltaMax;
 
-// Setup a oneWire instance to communicate with any OneWire devices
-OneWire oneWire(ONE_WIRE_BUS);
+Adafruit_MCP3421 mcp;
+// // Setup a oneWire instance to communicate with any OneWire devices
+// OneWire oneWire(ONE_WIRE_BUS);
+// // Pass our oneWire reference to Dallas Temperature. 
+// DallasTemperature sensors(&oneWire);
 
-// Pass our oneWire reference to Dallas Temperature. 
-DallasTemperature sensors(&oneWire);
+// // Assign the addresses of your 1-Wire temp sensors.
+// // See the tutorial on how to obtain these addresses:
+// // http://www.hacktronics.com/Tutorials/arduino-1-wire-address-finder.html
 
-// Assign the addresses of your 1-Wire temp sensors.
-// See the tutorial on how to obtain these addresses:
-// http://www.hacktronics.com/Tutorials/arduino-1-wire-address-finder.html
-
-//DeviceAddress thermometer = { 0x28, 0x35, 0x88, 0x43, 0x05, 0x00, 0x00, 0xB0 };
-DeviceAddress thermometer; // = { 0x28, 0x4E, 0xF7, 0x07, 0xD6, 0x01, 0x3C, 0x18 };
+// //DeviceAddress thermometer = { 0x28, 0x35, 0x88, 0x43, 0x05, 0x00, 0x00, 0xB0 };
+// DeviceAddress thermometer; // = { 0x28, 0x4E, 0xF7, 0x07, 0xD6, 0x01, 0x3C, 0x18 };
 
 int ledState = LOW;             // ledState used to set the LED
 unsigned long ledPrevMillis = 0;         
@@ -100,6 +103,7 @@ int deltaChangeCountInMin = 60;
 const uint8_t TickCountMax = 60; // 30 ac power line cycle
 const uint8_t HalfCycle = TickCountMax/2;
 const uint8_t ReqTempCount = 38; // (TickCountMax - ReqTempCount) * 1/timerFrequency  > temp sensor conversion time
+const uint8_t ReqMCPAdcCount = 48; //TODO
 
 volatile uint8_t timerTickCount = 0;
 //uint8_t heatingTickCount = 0;
@@ -115,9 +119,43 @@ const uint8_t trsIdal = 0;
 const uint8_t trsWaitForComplete = 2;
 volatile uint8_t tempReadStatus = trsIdal; //idal,  1 - send req, 2 - wait, 3 - completed
  
+const short WaitNone = 1; 
+const short WaitAdcReady = 3;
+volatile short waitFor = WaitNone;
+
 volatile unsigned long reqTempTime = 0; 
 PrintEx PExSerial = Serial; //Wrap the Serial object in a PrintEx interface.
 
+double Vtest = 2505.0;  //# mv
+double Vbase = 507.0; // # mv
+double R     = 50.06;  // # kOhm
+double Rntc  = 0.0;   //# kOhm
+double v2Rntc(double v ){
+  double Vr = v + Vbase;
+    Rntc = R*Vtest/Vr - R;
+    return  Rntc*1000;
+}
+const int32_t AdcInvalidValue = 2000;
+volatile int32_t adcValue = AdcInvalidValue;
+void resetAdcNTemp(){
+   adcValue = AdcInvalidValue;
+   tempC = InvalidTemp;
+}
+double A = 3.3170353688e-04;
+double B = 2.8188645815e-04;
+double C = -2.2394141349e-08;
+double steinhart_hart_C(double R_ohm, double A, double B, double C) {
+    double lnR = log(R_ohm);                // natural log
+    double invT = A + B*lnR + C*lnR*lnR*lnR;
+    double T_K = 1.0 / invT;
+    return T_K - 273.15;                    // Celsius
+}
+double steinhartHart_R2C(double R_ohm){
+  return steinhart_hart_C( R_ohm,   A,   B,   C);
+}
+float c2F(float C){
+  return C*9/5+32;
+}
 float getDelta(){// detla is decresed when temp rising and close to the target
   if (currentStage == 1) {
     deltaTemp = 0.5;
@@ -139,6 +177,7 @@ float getDelta(){// detla is decresed when temp rising and close to the target
   }
   return deltaTemp; 
 }
+// program name
 String getPName(int p){
   return pNames[p];
 }
@@ -222,12 +261,63 @@ boolean isDone(){
   return (currentStage == sComplete || currentStage == sWarning );
 }
 
+void adc2Temp(int32_t adcValue){
+  double r = v2Rntc(adcValue);
+  tempC = steinhartHart_R2C(r);
+  unsigned long convTime = millis() - reqTempTime; 
+  if(debugPrint){
+      Serial.print("adc = ");
+    Serial.print(adcValue);
+    Serial.print(",  r = ");
+    Serial.print(r);
+     Serial.print(",  tempC = ");
+    Serial.print(tempC);
+    Serial.print(",  time = ");
+    Serial.println(convTime);
+  }
+ }
+
 void setup() {
   // start serial port
   Serial.begin(115200);
- 
-  dpLn("#### yogurt maker powered ON ####");
   
+  Serial.println("#### yogurt maker powered ON ####");
+  if (!mcp.begin(0x68, &Wire)) { 
+    Serial.println("Failed to find MCP3421 chip");
+    while (1) {
+      delay(10); // Avoid a busy-wait loop
+    }
+  }
+  Serial.println("MCP3421 Found!");
+  // Options: GAIN_1X, GAIN_2X, GAIN_4X, GAIN_8X
+  mcp.setGain(GAIN_1X); 
+
+  // The resolution affects the sample rate (samples per second, SPS)
+  // Other options: RESOLUTION_14_BIT (60 SPS), RESOLUTION_16_BIT (15 SPS), RESOLUTION_18_BIT (3.75 SPS)
+  mcp.setResolution(RESOLUTION_12_BIT); // 240 SPS (12-bit) 
+  // Test setting and getting Mode
+  mcp.setMode(MODE_CONTINUOUS); // Options: MODE_CONTINUOUS, MODE_ONE_SHOT  
+  resetAdcNTemp();
+  reqTempTime = millis();
+  //mcp.startOneShotConversion();  
+  waitFor = WaitAdcReady;
+  while ( !mcp.isReady() && waitFor == WaitAdcReady) {  
+        delay(1); // Avoid a busy-wait loop 
+  }
+  adcValue = mcp.readADC(); // Read ADC value  
+  waitFor = WaitNone;
+  double r = v2Rntc(adcValue);
+  tempC = steinhartHart_R2C(r);
+  unsigned long convTime = millis() - reqTempTime; 
+  PExSerial.printf("first conversion time = %u  \n", convTime );  
+   Serial.print("adc = ");
+  Serial.print(adcValue);
+   Serial.print(",  r = ");
+  Serial.print(r);
+  Serial.print(",  tempC = ");
+  Serial.println(tempC);
+  printTemperature(tempC);
+
   pinMode(BuzzerPIN, OUTPUT); 
   pinMode(RelayPIN, OUTPUT);  // control relay
   pinMode(powerLevelPIN, OUTPUT); // control Triac
@@ -243,40 +333,39 @@ void setup() {
     pinMode(WTCyclePIN, OUTPUT); 
     pinMode(WTReqPIN, OUTPUT);
   #endif   
-  sensors.begin();
-  // set the resolution to 10 bit (good enough?)
-  sensors.getAddress(thermometer, 0);
-  sensors.setResolution(thermometer, 10);
- // sensors.setResolution(thermometer, 10);  
-  sensors.setWaitForConversion(false);
-  reqTempTime = millis();
-  sensors.requestTemperatures();    
-  while(!sensors.isConversionComplete()){
-    delay(10);
-  } 
-  tempC = sensors.getTempCByIndex(0);
-  //tempC = sensors.getTempC(thermometer); 
-  unsigned long convTime = millis() - reqTempTime; 
-  PExSerial.printf("first conversion time = %u  \n", convTime );  
-  printTemperature(tempC);
+  // sensors.begin();
+  
+  // sensors.getAddress(thermometer, 0);
+  // sensors.setResolution(thermometer, 10); 
+  // sensors.setWaitForConversion(false);
+  // reqTempTime = millis();
+  // // sensors.requestTemperatures();    
+  // while(!sensors.isConversionComplete()){
+  //   delay(10);
+  // } 
+  // tempC = sensors.getTempCByIndex(0);
+  // //tempC = sensors.getTempC(thermometer); 
+  // unsigned long convTime = millis() - reqTempTime; 
+  // PExSerial.printf("first conversion time = %u  \n", convTime );  
+  // printTemperature(tempC);
   //PExSerial.printf("Temp = %f \n", tempC);
-  if (tempC == -127.00) { // cannot get temp from sensor
+  if (tempC == -InvalidTemp) { // cannot get temp from sensor
     currentStage = sWarning;  
     startStage(sWarning);   
   } 
   tempReadStatus = trsIdal; 
-  tempC = -127.00;
+  tempC = InvalidTemp;
 
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
 
-  //Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
+  Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
   //Timer1.pwm(9, 512);                // setup pwm on pin 9, 50% duty cycle
-  //Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
+  Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
-  attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
+  //attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v2.5 push button to start ###");
+  Serial.println("### v2.0 push button to start ###");
 }
 
 void onButtonDown() { // call back for button down
@@ -559,21 +648,41 @@ void printStatus(){
 
 
 void loop() {
+  // if(waitFor == WaitAdcReq){
+  //   Serial.println("startOneShotConversion");
+  //   reqTempTime = millis();
+  //   //mcp.startOneShotConversion();  // sent an async temp request; Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
+  //   waitFor == WaitFor;
+  // }
+  if (waitFor == WaitAdcReady && mcp.isReady()){ 
+    adcValue = mcp.readADC(); // Read ADC value  
+    waitFor = WaitNone;
+    adc2Temp(adcValue);
+    // tempC = steinhartHart_R2C(v2Rntc(adcValue)); 
+    // if (debugPrint){  
+    //   PExSerial.printf("conversion time = %u \n",  millis() - reqTempTime); 
+    // } 
+    #ifdef TEST_WAVE
+      digitalWrite(WTReqPIN, LOW);  // request begin 
+    #endif
+    
+  } 
+  
 
   //run();
   //testDone();
    //testBlink2();
    //testRelay(); 
-  if (tempReadStatus == trsWaitForComplete && sensors.isConversionComplete()){
-    tempC = sensors.getTempCByIndex(0);
-    tempReadStatus = trsIdal;
-    #ifdef TEST_WAVE
-    digitalWrite(WTReqPIN, LOW);  // request begin 
-    #endif
-    if (debugPrint){  
-      PExSerial.printf("conversion time = %u \n",  millis() - reqTempTime); 
-    } 
-  } 
+  // if (tempReadStatus == trsWaitForComplete && sensors.isConversionComplete()){
+  //   tempC = sensors.getTempCByIndex(0);
+  //   tempReadStatus = trsIdal;
+  //   #ifdef TEST_WAVE
+  //   digitalWrite(WTReqPIN, LOW);  // request begin 
+  //   #endif
+  //   if (debugPrint){  
+  //     PExSerial.printf("conversion time = %u \n",  millis() - reqTempTime); 
+  //   } 
+  // } 
 
 }
 
@@ -581,6 +690,8 @@ void timerTickCheck(){
       //  if (!isWorkStage(currentStage)){
       //    blinkStageLed();
       //  } 
+      // Serial.print("timerTickCheck ");
+      // Serial.println(timerTickCount);
   timerTickCount++; 
   if (timerTickCount >= TickCountMax ){// restart a new a heating cycle
         //if(checkProgram()){ 
@@ -594,13 +705,22 @@ void timerTickCheck(){
       startCycle();
       blinkStageLed();
   }else{ 
-    if (timerTickCount == ReqTempCount ){
+    // if (timerTickCount == ReqTempCount ){
+    //   #ifdef TEST_WAVE
+    //   digitalWrite(WTReqPIN, HIGH);  // request begin
+    //   #endif
+    //   reqTempTime = millis();
+    //   sensors.requestTemperatures();
+    //   tempReadStatus = trsWaitForComplete;  // sent an async temp request; Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
+    // }
+    if (timerTickCount == ReqMCPAdcCount ){
       #ifdef TEST_WAVE
       digitalWrite(WTReqPIN, HIGH);  // request begin
       #endif
-      reqTempTime = millis();
-      sensors.requestTemperatures();
-      tempReadStatus = trsWaitForComplete;  // sent an async temp request; Making sure the conversion time is less than checkTemp() calling cycle and keeping them in sync.
+      resetAdcNTemp();
+      reqTempTime = millis(); 
+      waitFor = WaitAdcReady; // set flag to notify loop to read ADC
+
     }
     #ifdef TEST_WAVE
       if(timerTickCount == HalfCycle){
@@ -745,7 +865,7 @@ void startCycle(){
       }   
     }
       
-    if (tempC == -127.00) { // cannot get temp from sensor
+    if (tempC == InvalidTemp) { // cannot get temp from sensor
       currentStage = sWarning;  
       startStage(sWarning);   
       return; 
@@ -854,7 +974,7 @@ void startCycle(){
   
 void printTemperature(float tempC)
 {  
-  if (tempC == -127.00) {
+  if (tempC == InvalidTemp) {
     Serial.println("Error getting temperature");
   } else {
     Serial.print("currentStage=");
@@ -862,7 +982,7 @@ void printTemperature(float tempC)
     Serial.print("C: ");
     Serial.print(tempC);
     Serial.print(" F: ");
-    Serial.println(DallasTemperature::toFahrenheit(tempC));
+    Serial.println(c2F(tempC)); 
     Serial.print("reach Target Temp ");
     Serial.println(reachTargetTemp);    
   }

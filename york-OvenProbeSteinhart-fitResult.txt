@@ -1,0 +1,75 @@
+
+9/6/2025
+
+R = [68465.8 61307.94 48992.37 40875.68 34612.72 28808.11 23748.3 19761.99 16465.36 13659.66 ...
+    11350.53 9768.39 8510.9 7754.8 6630.91 5698.25 5012.6];        % Ω, all > 0
+T = [17.5 20.0 25.0 30.0 35.0 40.0 45.0 50.0 55.0 60.0 ...
+    65.0 70.0 75.0 80.0 85.0 90.0 95.0];       % °C
+
+###############################################################    
+## fitting result 1, use ChatGPT  Steinhart-Hart fit on Matlab
+###############################################################
+
+>> fitSteinhart
+Steinhart-Hart fit:
+  A = 3.3170353688e-04
+  B = 2.8188645815e-04
+  C = -2.2394141349e-08
+  RMSE  = 0.6844 °C
+  Max |error| = 1.3562 °C at R = 11350.530 Ω (T = 65.00 °C)
+
+  % Evaluate temperature for a new resistance:
+R_new = 5000;                          % Ω
+lnR    = log(R_new);
+T_K    = 1 / (SH.A + SH.B*lnR + SH.C*lnR^3);
+T_C    = T_K - 273.15
+
+###############################################################
+## fitting result 2 - use ChatGPT Steinhart–Hart (safe) fit  
+###############################################################
+>> userobustfitSteinhart
+Steinhart–Hart (safe) fit:
+  A = 3.3895722987e-04
+  B = 2.8067679041e-04
+  C = -1.7725030176e-08
+  RMSE = 0.685 °C | Max|err| = 1.384 °C at R=11350.5 Ω (T=65.00 °C)
+  cond([1 lnR (lnR)^3]) = 1.11e+05 (lower is better)
+
+T_pred =
+
+   25.0578
+   73.9355
+   94.6885
+
+   
+C Code:
+
+#include <math.h>
+
+double steinhart_hart_C(double R_ohm, double A, double B, double C) {
+    double lnR = log(R_ohm);                // natural log
+    double invT = A + B*lnR + C*lnR*lnR*lnR;
+    double T_K = 1.0 / invT;
+    return T_K - 273.15;                    // Celsius
+}
+
+9/7/2025
+test result 
+use fork temp reader, DS sensor, Oven NTC sensor with steinhart_hart fiiting coefficient
+
+fork temp  Oven NTC sensor
+95,        102
+90,         94
+85,         88.4
+80,         82.0
+75,         NA
+70,         70.39
+65,         65.94
+60,         60.35
+55,         55.31
+50,         49.66
+45,         44.68
+37.2,       36.61
+
+at higher temp ( from 80 ), the calculated value is significant higher the model.
+Since I only need good pricision between 30-60 Celsius, the fit result 1 is used on my yogurt maker.

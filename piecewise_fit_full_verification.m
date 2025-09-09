@@ -1,0 +1,249 @@
+%% ============================
+%% Automatic Piecewise Fit with Verification and C Export
+%% ============================
+
+clear; clc; close all;
+
+%% Example data 
+y = [15.75 16.0 16.25 16.5 16.75 17.0 17.25 17.5 17.75 18.0 ...
+    18.25 18.5 18.75 19.0 19.5 19.75 20.0 20.25 20.5 20.75 ...
+    21.0 21.25 21.5 21.75 22.0 22.25 22.5 22.75 23.0 23.25 ...
+    23.5 23.75 24.0 24.25 24.5 24.75 25.0 25.25 25.5 25.75 ...
+    26.0 26.25 26.5 26.75 27.0 27.25 27.5 28.0 28.25 28.5 ...
+    28.75 29.25 29.5 29.75 30.0 30.25 30.5 30.75 31.0 31.25 ...
+    31.5 31.75 32.0 32.25 32.5 32.75 33.0 33.25 33.5 33.75 ...
+    34.0 34.25 34.5 34.75 35.0 35.25 35.5 35.75 36.0 36.25 ...
+    36.5 36.75 37.0 37.25 37.5 37.75 38.0 38.25 38.5 38.75 ...
+    39.0 39.25 39.5 39.75 40.0 40.25 40.5 40.75 41.0 41.25 ...
+    41.5 41.75 42.0 42.25 42.5 42.75 43.0 43.25 43.5 43.75 ...
+    44.0 44.25 44.5 44.75 45.0 45.25 45.5 45.75 46.0 46.25 ...
+    46.5 46.75 47.0 47.25 47.5 47.75 48.0 48.25 48.5 48.75 ...
+    49.0 49.25 49.5 49.75 50.0 50.5 50.75 51.25 51.5 52.0 ...
+    52.25 52.75 53.25 53.75 54.5 55.25 56.0 56.25 56.5 56.75 ...
+    57.0 57.25 57.5 57.75 58.0 58.25 58.5 58.75 59.0 59.25 ...
+    59.5 59.75 60.0 60.25 60.5 60.75 61.0 61.25 61.5 61.75 ...
+    62.0 62.25 62.5 62.75 63.0 63.25 63.5 63.75 64.25 64.5 ...
+    64.75 65.0 65.25 65.5 65.75 66.0 66.25 66.5 66.75 67.0 ...
+    67.25 67.5 67.75 68.0 68.25 68.5 68.75 69.0 69.25 69.5 ...
+    69.75 70.0 70.25 70.5 70.75 71.0 71.25 71.5 71.75 72.0 ...
+    72.25 72.5 72.75 73.0 73.25 73.5 73.75 74.0 74.25 74.5 ...
+    74.75 75.0 75.25 75.5 75.75 76.0 76.25 76.5 76.75 77.0 ...
+    77.25 77.5 77.75 78.0 78.25 78.5 78.75 79.0 79.25 79.5 ...
+    79.75 80.0 80.25 80.5 80.75 81.0 81.25 81.5 81.75 82.0 ...
+    82.25 82.5 82.75 83.0 83.25 83.5 83.75 84.0 84.25 84.5 ...
+    84.75 85.0 85.25 85.5 85.75 86.0 86.25 86.5 86.75 87.0 ...
+    87.25 87.5 87.75 88.0 88.25 88.5 88.75 89.0 89.25 89.5 ...
+    89.75 90.0 90.25 90.5 90.75 91.0 91.25 91.5 91.75 92.0 ...
+    92.25 92.5 92.75 93.0 93.25 93.5 93.75 94.0 94.25 94.5 ...
+    94.75 95.0 95.25 95.5 95.75 96.0 96.25 96.5 96.75 97.0 ...
+    97.25];
+
+x = [490.0 501.0 519.5 534.5 548.0 560.0 570.5 580.0 587.0 592.0 ...
+    599.0 607.0 613.0 619.0 624.0 629.0 637.0 643.5 646.0 649.5 ...
+    656.0 662.5 667.5 672.0 677.0 681.0 684.5 696.5 710.0 718.5 ...
+    726.5 732.5 738.5 743.5 749.0 754.5 760.5 764.0 770.0 775.0 ...
+    779.0 783.0 788.0 793.0 798.0 803.0 809.0 814.0 820.0 825.0 ...
+    830.0 834.0 838.0 841.0 839.0 845.5 858.5 873.5 886.0 894.5 ...
+    902.0 907.5 913.5 918.0 922.0 926.0 932.0 941.0 952.0 961.5 ...
+    969.0 973.0 976.5 981.5 987.5 992.5 996.0 1002.5 1009.0 1018.0 ...
+    1029.5 1037.5 1042.5 1048.0 1053.5 1061.0 1070.0 1078.0 1085.0 1089.0 ...
+    1093.0 1098.0 1103.0 1108.0 1113.0 1119.5 1125.5 1132.0 1139.0 1143.0 ...
+    1147.5 1151.0 1154.0 1157.5 1161.0 1163.5 1166.5 1171.0 1174.5 1178.0 ...
+    1181.5 1184.5 1188.5 1191.5 1195.5 1197.5 1203.0 1208.0 1216.0 1227.0 ...
+    1234.5 1240.5 1243.5 1245.5 1248.0 1251.0 1254.0 1257.0 1260.0 1263.0 ...
+    1267.0 1271.0 1274.0 1277.0 1281.0 1285.0 1289.0 1293.0 1297.0 1302.0 ...
+    1306.0 1312.0 1318.0 1325.0 1332.0 1338.0 1343.0 1347.0 1352.0 1355.0 ...
+    1358.0 1363.0 1369.5 1377.5 1384.0 1388.5 1390.0 1389.5 1392.0 1396.5 ...
+    1400.5 1405.0 1408.0 1412.5 1418.0 1423.0 1427.5 1430.0 1433.0 1438.0 ...
+    1442.0 1445.5 1449.0 1452.0 1455.0 1456.5 1460.0 1465.5 1468.0 1468.5 ...
+    1471.0 1474.0 1476.5 1477.5 1481.5 1484.5 1487.0 1491.5 1494.5 1497.5 ...
+    1501.0 1505.5 1508.0 1509.0 1511.5 1514.0 1516.5 1520.5 1523.5 1526.5 ...
+    1529.0 1532.5 1535.5 1538.0 1540.0 1542.0 1543.0 1546.0 1550.0 1554.0 ...
+    1558.5 1562.5 1565.5 1568.0 1570.0 1572.5 1575.5 1578.0 1581.5 1583.5 ...
+    1585.5 1588.0 1590.0 1594.0 1597.0 1599.0 1602.0 1604.0 1606.0 1608.0 ...
+    1610.0 1612.0 1613.5 1614.0 1615.0 1618.0 1620.0 1622.0 1624.5 1627.0 ...
+    1629.5 1632.5 1636.0 1639.0 1641.5 1643.0 1646.0 1649.5 1652.5 1656.0 ...
+    1658.0 1660.5 1662.5 1664.5 1666.0 1669.0 1671.5 1673.5 1675.5 1678.0 ...
+    1681.0 1682.5 1684.0 1686.0 1688.0 1691.0 1692.5 1694.5 1697.0 1698.5 ...
+    1700.5 1701.5 1703.5 1706.0 1707.5 1708.5 1710.5 1713.0 1715.0 1717.5 ...
+    1719.5 1722.0 1724.0 1726.0 1727.5 1728.5 1730.5 1732.0 1734.0 1736.0 ...
+    1738.5 1739.5 1740.5 1742.5 1743.5 1744.5 1745.5 1747.5 1749.0 1752.0 ...
+    1754.0 1757.5 1761.0 1764.5 1768.0 1771.0 1775.0 1780.5 1787.0 1794.0 ...
+    1801.5];
+
+anchorsX = [ 501.0 637.0 760.5 839.0 987.5 1113.0 1195.5 1281.0 1338.0 1408.0 1474.0 1532.5 1588.0 1632.5 1682.5 1722.0 1757.5]
+
+%% anchors temp [16.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.25, 60.0, 65.0, 70.0, 75.0, 80.0, 85.0, 90.0, 95.0]
+
+
+anchorsY = interp1(x, y, anchorsX);
+
+%% Maximum number of breakpoints to try
+maxBreaks = 30;
+
+%% -----------------------------
+%% Automatic piecewise linear fit
+%% -----------------------------
+bestAIC = inf;
+bestModel = struct();
+
+for k = 0:maxBreaks
+    if k == 0
+        y_fit = interp1(anchorsX, anchorsY, x, 'linear');
+        SSE = sum((y - y_fit).^2);
+        nParams = 2;
+        nData = numel(x);
+        AIC = nData*log(SSE/nData) + 2*nParams;
+        bp_opt = [];
+    else
+        bp0 = linspace(anchorsX(1), anchorsX(end), k+2);
+        bp0 = bp0(2:end-1);
+        piecewiseFun = @(bp, xq) piecewiseModel(bp, xq, anchorsX, anchorsY);
+        opts = optimset('Display','off');
+        lb = anchorsX(1)*ones(size(bp0));
+        ub = anchorsX(end)*ones(size(bp0));
+        bp_opt = lsqcurvefit(@(bp,xx) piecewiseFun(bp,xx), bp0, x, y, lb, ub, opts);
+        y_fit = piecewiseFun(bp_opt, x);
+        SSE = sum((y - y_fit).^2);
+        nParams = k + 2;
+        nData = numel(x);
+        AIC = nData*log(SSE/nData) + 2*nParams;
+    end
+    
+    if AIC < bestAIC
+        bestAIC = AIC;
+        bestModel.k = k;
+        bestModel.bp = bp_opt;
+        bestModel.y_fit = y_fit;
+        bestModel.AIC = AIC;
+    end
+end
+
+%% -----------------------------
+%% Compute segment equations
+%% -----------------------------
+allX = [anchorsX(1) sort(bestModel.bp(:)') anchorsX(end)];
+segmentEqns = table('Size',[numel(allX)-1,3], ...
+                    'VariableTypes',{'double','double','string'}, ...
+                    'VariableNames',{'X_start','X_end','Equation'});
+
+for i = 1:numel(allX)-1
+    X1 = allX(i); X2 = allX(i+1);
+    Y1 = interp1(x, bestModel.y_fit, X1);
+    Y2 = interp1(x, bestModel.y_fit, X2);
+    slope = (Y2-Y1)/(X2-X1);
+    intercept = Y1 - slope*X1;
+    segmentEqns.X_start(i) = X1;
+    segmentEqns.X_end(i) = X2;
+    segmentEqns.Equation(i) = sprintf('y = %.3fx %+0.3f', slope, intercept);
+end
+
+disp('Segment equations:');
+disp(segmentEqns);
+
+%% -----------------------------
+%% Plot data, fit, anchors, breakpoints, and errors
+%% -----------------------------
+figure; hold on; grid on;
+plot(x, y, 'ko','MarkerSize',6); % Original data
+plot(x, bestModel.y_fit, 'r-','LineWidth',2); % Fit
+
+% Anchors
+plot(anchorsX, anchorsY, 'bs','MarkerFaceColor','b','MarkerSize',8);
+text(anchorsX, anchorsY, arrayfun(@(v) sprintf('Anchor %.1f',v), anchorsX,'UniformOutput',false), ...
+    'VerticalAlignment','bottom','HorizontalAlignment','right','Color','b');
+
+% Breakpoints
+if ~isempty(bestModel.bp)
+    y_bp = interp1(x, bestModel.y_fit, bestModel.bp);
+    plot(bestModel.bp, y_bp, 'gd','MarkerFaceColor','g','MarkerSize',8);
+    text(bestModel.bp, y_bp, arrayfun(@(v) sprintf('BP %.2f',v), bestModel.bp,'UniformOutput',false), ...
+        'VerticalAlignment','bottom','HorizontalAlignment','left','Color','g');
+end
+
+% Errors
+checkPointsX = [anchorsX, bestModel.bp];
+checkPointsYActual = interp1(x, y, checkPointsX);
+checkPointsYPred   = interp1(x, bestModel.y_fit, checkPointsX);
+errors = checkPointsYActual - checkPointsYPred;
+for i = 1:numel(checkPointsX)
+    plot([checkPointsX(i), checkPointsX(i)], [checkPointsYActual(i), checkPointsYPred(i)], 'm--','LineWidth',1.2);
+    text(checkPointsX(i), (checkPointsYActual(i)+checkPointsYPred(i))/2, ...
+        sprintf('Err=%.2f', errors(i)), 'Color','m','FontSize',9, ...
+        'HorizontalAlignment','left','VerticalAlignment','bottom');
+end
+
+xlabel('x'); ylabel('y');
+title('Optimized Piecewise Linear Fit with Anchors, Breakpoints, and Errors');
+legend('Data','Optimized Fit','Anchors','Breakpoints','Error Lines','Location','best');
+
+%% -----------------------------
+%% Export C code for full verification
+%% -----------------------------
+nSeg = numel(allX)-1;
+slopes = zeros(nSeg,1);
+intercepts = zeros(nSeg,1);
+for i = 1:nSeg
+    slopes(i) = (interp1(x,bestModel.y_fit,allX(i+1)) - interp1(x,bestModel.y_fit,allX(i)))/(allX(i+1)-allX(i));
+    intercepts(i) = interp1(x,bestModel.y_fit,allX(i)) - slopes(i)*allX(i);
+end
+
+filename = 'piecewise_fit_full_verification.c';
+fid = fopen(filename,'w');
+
+fprintf(fid,"#include <stdio.h>\n#include <math.h>\n\n");
+fprintf(fid,"#define N_SEGMENTS %d\n#define N_CHECK %d\n\n", nSeg, numel(allX));
+fprintf(fid,"typedef struct {\n    double x_start;\n    double x_end;\n    double slope;\n    double intercept;\n} Segment;\n\n");
+
+fprintf(fid,"Segment segments[N_SEGMENTS] = {\n");
+for i = 1:nSeg
+    fprintf(fid,"    {%.6f, %.6f, %.6f, %.6f}", allX(i), allX(i+1), slopes(i), intercepts(i));
+    if i<nSeg, fprintf(fid,",\n"); else fprintf(fid,"\n"); end
+end
+fprintf(fid,"};\n\n");
+fprintf(fid,"double check_x[N_CHECK] = {");
+fprintf(fid, sprintf('%.6f, ', allX(1:end-1)));
+fprintf(fid,'%.6f};\n', allX(end));
+
+y_check = interp1(x,y,allX);
+fprintf(fid,"double y_actual[N_CHECK] = {");
+fprintf(fid, sprintf('%.6f, ', y_check(1:end-1)));
+fprintf(fid,'%.6f};\n', y_check(end));
+
+fprintf(fid,"double piecewise_fit(double x) {\n");
+fprintf(fid,"    if(x <= segments[0].x_start) return segments[0].slope*x + segments[0].intercept;\n");
+fprintf(fid,"    if(x >= segments[N_SEGMENTS-1].x_end) return segments[N_SEGMENTS-1].slope*x + segments[N_SEGMENTS-1].intercept;\n");
+fprintf(fid,"    for(int i=0;i<N_SEGMENTS;i++) {\n");
+fprintf(fid,"        if(x>=segments[i].x_start && x<=segments[i].x_end) return segments[i].slope*x + segments[i].intercept;\n");
+fprintf(fid,"    }\n    return NAN;\n}\n\n");
+
+fprintf(fid,"int main() {\n");
+fprintf(fid, '    printf(''--- Segment Equations ---\\n'');\n');
+fprintf(fid,"    for(int i=0;i<N_SEGMENTS;i++) {\n");
+fprintf(fid, '        printf("Segment %%d: x_start=%%f, x_end=%%f, slope=%%f, intercept=%%f\\n", i+1, segments[i].x_start, segments[i].x_end, segments[i].slope, segments[i].intercept);\n');
+fprintf(fid,"    }\n\n");
+
+fprintf(fid, '    printf("\n--- Predicted Values & Errors at Breakpoints/Anchors ---\n");\n');
+fprintf(fid,"    for(int i=0;i<N_CHECK;i++) {\n");
+fprintf(fid,"        double y_pred = piecewise_fit(check_x[i]);\n");
+fprintf(fid,"        double error = y_actual[i] - y_pred;\n");
+fprintf(fid, '        printf("x=%%f, y_actual=%%f, y_pred=%%f, error=%%f\\n", check_x[i], y_actual[i], y_pred, error);\n');
+fprintf(fid,"    }\n\n");
+
+fprintf(fid,"    double test_x[] = {-5, 0, 5, 10, 15, 20, 25};\n    int n_test=7;\n");
+fprintf(fid, '    printf("\n--- Arbitrary x evaluation ---\n");\n');
+fprintf(fid,"    for(int i=0;i<n_test;i++) {\n");
+fprintf(fid,'       printf(\"x=%%f, y=%%f\\n\", test_x[i], piecewise_fit(test_x[i]));\n');
+fprintf(fid,"    }\n    return 0;\n}\n");
+
+fclose(fid);
+disp(['Exported full verification C code to ', filename]);
+
+%% -----------------------------
+%% Helper Function
+%% -----------------------------
+function yq = piecewiseModel(bp, xq, anchorsX, anchorsY)
+    allX = [anchorsX(1) sort(bp(:)') anchorsX(end)];
+    allY = interp1(anchorsX, anchorsY, allX);
+    yq = interp1(allX, allY, xq, 'linear', 'extrap');
+end

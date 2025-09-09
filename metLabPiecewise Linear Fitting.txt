@@ -1,0 +1,104 @@
+%king_xhuang@yahoo.com/One$4mtlb
+% =======================================================
+% Piecewise Linear Fitting -> Full C Code Export with Extrapolation
+% =======================================================
+
+clear; clc; close all;
+
+%% Step 1: Your data
+x = 1:20;
+y = [2.1 2.9 4.2 4.8 6.1 7.2 8.5 8.9 10.1 11.0 ...
+     14.2 15.1 16.0 17.8 19.0 21.2 23.1 25.0 26.5 28.3];
+
+%% Step 2: Manual breakpoints
+breaks = [1 7 13 20];
+
+%% Step 3: Helper function for R^2
+Rsq = @(y, yfit) 1 - sum((y - yfit).^2) / sum((y - mean(y)).^2);
+
+%% Step 4: Piecewise linear fit
+results = [];
+for k = 1:length(breaks)-1
+    idx = find(x >= breaks(k) & x <= breaks(k+1));
+    x_seg = x(idx);
+    y_seg = y(idx);
+
+    p = polyfit(x_seg, y_seg, 1);
+    y_fit = polyval(p, x_seg);
+
+    R2 = Rsq(y_seg, y_fit);
+
+    results = [results; {breaks(k), breaks(k+1), p(1), p(2), R2}];
+
+    fprintf('Section %d (x = %.2f to %.2f): y = %.4f*x + %.4f , R^2 = %.4f\n', ...
+        k, breaks(k), breaks(k+1), p(1), p(2), R2);
+end
+
+T = cell2table(results, ...
+    'VariableNames', {'X_start','X_end','Slope','Intercept','R2'});
+
+%% Step 5: Export full C code with extrapolation
+filename = 'piecewise_fit_full_extrap.c';
+fid = fopen(filename,'w');
+
+fprintf(fid,'// ==================================================\n');
+fprintf(fid,'// Auto-generated C code: Piecewise Linear Fit + Extrapolation\n');
+fprintf(fid,'// ==================================================\n\n');
+
+fprintf(fid,'#include <stdio.h>\n#include <math.h>\n\n');
+
+% Number of segments
+fprintf(fid,'#define N_SEGMENTS %d\n\n', height(T));
+
+% Struct definition
+fprintf(fid,'typedef struct {\n');
+fprintf(fid,'    double x_start;\n');
+fprintf(fid,'    double x_end;\n');
+fprintf(fid,'    double slope;\n');
+fprintf(fid,'    double intercept;\n');
+fprintf(fid,'} Segment;\n\n');
+
+% Array
+fprintf(fid,'Segment segments[N_SEGMENTS] = {\n');
+for i = 1:height(T)
+    fprintf(fid,'    {%.6f, %.6f, %.6f, %.6f}', ...
+        T.X_start(i), T.X_end(i), T.Slope(i), T.Intercept(i));
+    if i ~= height(T)
+        fprintf(fid,',\n');
+    else
+        fprintf(fid,'\n');
+    end
+end
+fprintf(fid,'};\n\n');
+
+% piecewise_fit function with extrapolation
+fprintf(fid,'double piecewise_fit(double x) {\n');
+fprintf(fid,'    if(x < segments[0].x_start) {\n');
+fprintf(fid,'        // Extrapolate using first segment\n');
+fprintf(fid,'        return segments[0].slope * x + segments[0].intercept;\n');
+fprintf(fid,'    } else if(x > segments[N_SEGMENTS-1].x_end) {\n');
+fprintf(fid,'        // Extrapolate using last segment\n');
+fprintf(fid,'        return segments[N_SEGMENTS-1].slope * x + segments[N_SEGMENTS-1].intercept;\n');
+fprintf(fid,'    } else {\n');
+fprintf(fid,'        for(int i=0;i<N_SEGMENTS;i++) {\n');
+fprintf(fid,'            if(x >= segments[i].x_start && x <= segments[i].x_end) {\n');
+fprintf(fid,'                return segments[i].slope * x + segments[i].intercept;\n');
+fprintf(fid,'            }\n');
+fprintf(fid,'        }\n');
+fprintf(fid,'    }\n');
+fprintf(fid,'    return NAN; // should never reach here\n');
+fprintf(fid,'}\n\n');
+
+% main example
+fprintf(fid,'int main() {\n');
+fprintf(fid,'    double x_input[] = {0.0, 5.0, 10.0, 15.0, 25.0};\n');
+fprintf(fid,'    int n = 5;\n');
+fprintf(fid,'    for(int i=0;i<n;i++) {\n');
+fprintf(fid,'        double y_output = piecewise_fit(x_input[i]);\n');
+fprintf(fid,'        printf("x = %%f -> y = %%f\\n", x_input[i], y_output);\n');
+fprintf(fid,'    }\n');
+fprintf(fid,'    return 0;\n');
+fprintf(fid,'}\n');
+
+fclose(fid);
+disp(['Full C code with extrapolation saved to ' filename]);  

@@ -1,0 +1,5 @@
+# depslib dependency file v1.0
+1757103647 source:g:\proj\arduino\yogurtmaker\piecewisefit\main.c
+	<stdio.h>
+	<math.h>
+

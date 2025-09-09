@@ -102,8 +102,8 @@ int deltaChangeCountInMin = 60;
 
 const uint8_t TickCountMax = 60; // 30 ac power line cycle
 const uint8_t HalfCycle = TickCountMax/2;
-const uint8_t ReqTempCount = 38; // (TickCountMax - ReqTempCount) * 1/timerFrequency  > temp sensor conversion time
-const uint8_t ReqMCPAdcCount = 48; //TODO
+//const uint8_t ReqTempCount = 38; // (TickCountMax - ReqTempCount) * 1/timerFrequency  > temp sensor conversion time
+const uint8_t ReqMCPAdcCount = TickCountMax - 2; //TODO
 
 volatile uint8_t timerTickCount = 0;
 //uint8_t heatingTickCount = 0;
@@ -295,10 +295,11 @@ void setup() {
   // The resolution affects the sample rate (samples per second, SPS)
   // Other options: RESOLUTION_14_BIT (60 SPS), RESOLUTION_16_BIT (15 SPS), RESOLUTION_18_BIT (3.75 SPS)
   mcp.setResolution(RESOLUTION_12_BIT); // 240 SPS (12-bit) 
+
+   resetAdcNTemp();
+   reqTempTime = millis();
   // Test setting and getting Mode
   mcp.setMode(MODE_CONTINUOUS); // Options: MODE_CONTINUOUS, MODE_ONE_SHOT  
-  resetAdcNTemp();
-  reqTempTime = millis();
   //mcp.startOneShotConversion();  
   waitFor = WaitAdcReady;
   while ( !mcp.isReady() && waitFor == WaitAdcReady) {  
@@ -359,11 +360,11 @@ void setup() {
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
 
-  Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
+  //Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
   //Timer1.pwm(9, 512);                // setup pwm on pin 9, 50% duty cycle
-  Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
+  //Timer1.attachInterrupt(timer1Callback);  // attaches callback() as a timer overflow interrupt
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
-  //attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
+  attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
   Serial.println("### v2.0 push button to start ###");
 }

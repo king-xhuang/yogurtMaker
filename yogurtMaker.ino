@@ -366,7 +366,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
   attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v2.0 push button to start ###");
+  Serial.println("### v2.0 9/28/25 push button to start ###");
 }
 
 void onButtonDown() { // call back for button down
@@ -577,7 +577,7 @@ void setHeatingTemp(float t){
     targetTemps[1] = 0.0;
     targetTemps[2] = 0.0; 
     initSetTemp = true;
-  }else Serial.println("cannot set temp, set p =1 first");
+  }else Serial.println("cannot set temp, enter 'sp1' to set p =1 first");
 }
 
 void setTimeInMin(int m){
@@ -602,9 +602,9 @@ void printStatus(){
       String s = "stage "; 
       s += String(i);
       s += ", Temp ";
-      s += String(targetTemps[i]);
+      s += targetTemps[i]; //String(targetTemps[i]);
       s += ", time ";       
-      s += String(stageHoldTimes[i]/minuteInMillis);
+      s += stageHoldTimes[i]/minuteInMillis; //String(stageHoldTimes[i]/minuteInMillis);
       s += " min";    
       Serial.println(s);
     }
@@ -889,7 +889,7 @@ void startCycle(){
       //TODO use PID ??? 
       //heatingLevel = ( tempDiff * TickCountMax )/tempDiff 
       if(heatingTrend == HeatingTrendRise){
-        if (tempDiff <=  3){ 
+        if (tempDiff <=  1){ 
            heatingTrend = HeatingTrendHold;
            Serial.print("### Turned Relay Off !!! ####");
            heatingLevel = 0;
@@ -899,14 +899,14 @@ void startCycle(){
         }
       }
       if(heatingTrend != HeatingTrendRise){ // heatingTrend = HeatingTrendHold
-        if ( tempDiff <= 1.5){
+        if ( tempDiff <= 1){
             heatingLevel = 0;
-        }else if (tempDiff < 2.5){
+        }else if (tempDiff < 2){
           heatingLevel = 15; //TODO
-        }else if (tempDiff < 5){             
+        }else if (tempDiff < 3){             
           heatingLevel = 30; //TODO
         }   
-        else if (tempDiff >=  5){             
+        else if (tempDiff >=  4){             
           heatingLevel = TickCountMax; //TODO
         }     
       }

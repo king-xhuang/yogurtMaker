@@ -43,8 +43,8 @@ const unsigned long minuteInMillis = 60000;
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
 
-//float targetTemps[] ={ 83.0, 39.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
-float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
+float targetTemps[] ={ 87.0, 38.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
+// float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
 
 //unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
 unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 1*minuteInMillis }; //   test data
@@ -54,6 +54,8 @@ float delta = 0.5;
 float deltaMax = 3.0;
 float deltaTemp = deltaMax;
 
+volatile float lastTempDiff = 0.0;
+volatile float tempDiff = 0.0;
 Adafruit_MCP3421 mcp;
 // // Setup a oneWire instance to communicate with any OneWire devices
 // OneWire oneWire(ONE_WIRE_BUS);
@@ -366,7 +368,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
   attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v2.0 9/28/25 push button to start ###");
+  Serial.println("### v2.0 9/29/25 push button to start ###");
 }
 
 void onButtonDown() { // call back for button down
@@ -474,13 +476,13 @@ void handleCommand( String cmd){
     }else if (isCmd(cmd, "ss")){
       printStatus();
     }else if (isCmd(cmd, "sm")){
-      setTimeInMin(getInt(cmd));
+      setTimeInMin(getInt(cmd.substring(2)));
     }
     else if (isCmd(cmd, "std")){
-      setHeatingTempDelta(getFloat(cmd));
+      setHeatingTempDelta(getFloat(cmd.substring(3)));
     }
     else if (isCmd(cmd, "st")){
-      setHeatingTemp(getFloat(cmd));
+      setHeatingTemp(getFloat(cmd.substring(2)));
     }else if (isCmd(cmd, "sp0")){
       setProgram( 0 );
     }
@@ -491,27 +493,26 @@ void handleCommand( String cmd){
     }
     else{
       Serial.print("unknown command ");
-      Serial.println( cmd.length());
+      Serial.println( cmd);
       printMenu();
     }
 }
 
-int getInt(String s){   
-  String n = s.substring(2, s.length()-1);
+int getInt(String s){  
   Serial.print("getInt len ");
-  Serial.print(n.length());
+  Serial.print(s.length());
   Serial.print(", val ");
-  Serial.println(n);
-  return n.toInt();
+  Serial.println(s);
+  return s.toInt();
 }
 
-float getFloat(String s){   
-  String n = s.substring(2, s.length()-1);
+float getFloat(String floatAsStr){   
+ // String n = s.substring(s.length()-1);
   Serial.print("getFloat   ");
-  Serial.print(n.length());
+  Serial.print(floatAsStr.length());
   Serial.print(", val ");
-  Serial.println(n);
-  float f = n.toFloat();
+  Serial.println(floatAsStr);
+  float f = floatAsStr.toFloat();
   Serial.println(f);
   return f;
 }
@@ -612,7 +613,12 @@ void printStatus(){
     if (heatingTrend == HeatingTrendRise){
       Serial.println(" Rise");
     }else if (heatingTrend == HeatingTrendHold){
-      Serial.println(" Hold");
+      Serial.print(" Hold temp is ");
+      if (tempDiff >= lastTempDiff){ 
+        Serial.println("DOWN");
+      }else{
+        Serial.println("UP");
+      }
     } 
     else if (heatingTrend == HeatingTrendFall){
       Serial.println(" Fall");
@@ -628,6 +634,7 @@ void printStatus(){
     }else{
       Serial.println(digitalRead(powerLevelPIN));
     }
+    
     
     if(isWorkStage(currentStage) ){
       int timePassed =  (millis() - stageStartTime)/minuteInMillis;
@@ -873,8 +880,9 @@ void startCycle(){
     }
        // do get temp from sensor          
              // turn on/off relay
-    float tempDiff = targetTempC - tempC;
-
+    lastTempDiff = tempDiff;
+     tempDiff = targetTempC - tempC;
+    
     // get sensor temp and reset heating level
     if(tempDiff <= 0.0){ // temp higher than target
       if (currentStage == s0 && !reachTargetTemp){
@@ -889,7 +897,7 @@ void startCycle(){
       //TODO use PID ??? 
       //heatingLevel = ( tempDiff * TickCountMax )/tempDiff 
       if(heatingTrend == HeatingTrendRise){
-        if (tempDiff <=  1){ 
+        if (tempDiff <=  0.7){ 
            heatingTrend = HeatingTrendHold;
            Serial.print("### Turned Relay Off !!! ####");
            heatingLevel = 0;
@@ -899,14 +907,17 @@ void startCycle(){
         }
       }
       if(heatingTrend != HeatingTrendRise){ // heatingTrend = HeatingTrendHold
-        if ( tempDiff <= 1){
-            heatingLevel = 0;
-        }else if (tempDiff < 2){
-          heatingLevel = 15; //TODO
-        }else if (tempDiff < 3){             
-          heatingLevel = 30; //TODO
-        }   
-        else if (tempDiff >=  4){             
+        if ( tempDiff <= 0.5){
+           heatingLevel = 0;
+        }
+        // else if (tempDiff <= 0.7){
+        //   // if ( tempDiff >= lastTempDiff ){ // temp is down
+        //    heatingLevel = 40;
+        //   // }else{  // temp is up
+        //   //   heatingLevel = 0;
+        //   // }
+        // }   
+        else if (tempDiff > 0.5){             
           heatingLevel = TickCountMax; //TODO
         }     
       }

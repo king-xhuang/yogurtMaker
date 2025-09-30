@@ -368,7 +368,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
   attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v2.0 9/29/25 push button to start ###");
+  Serial.println("### v3.0 9/29/25 final, push button to start ###");
 }
 
 void onButtonDown() { // call back for button down

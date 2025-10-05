@@ -43,11 +43,11 @@ const unsigned long minuteInMillis = 60000;
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
 
-float targetTemps[] ={ 87.0, 38.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
+float targetTemps[] ={ 87.0, 39.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
 // float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
 
-//unsigned long stageHoldTimes[] = {10*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
-unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 1*minuteInMillis }; //   test data
+unsigned long stageHoldTimes[] = {7*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
+//unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 1*minuteInMillis }; //   test data
 
 
 float delta = 0.5; 

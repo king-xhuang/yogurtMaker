@@ -33,8 +33,8 @@ const int sWarning = 5;  //  stage warning
 const int sInit = -1; // initial stage
 volatile int currentStage = sInit; 
 
-int p = -1; //program 0 - yogurt maker, 1 - sous vide
-const  String pNames[] = {"yogurt maker", "sous vide"};
+int p = -1; //program 0 - yogurt maker, 1 - sous vide, 2 -Kifer
+const  String pNames[] = {"yogurt maker", "sous vide","kefir"};
 
 const float InvalidTemp = -127.00;
 volatile float tempC = InvalidTemp;
@@ -43,10 +43,11 @@ const unsigned long minuteInMillis = 60000;
 const unsigned long hourInMillis = 60*60000;
 const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
 
-float targetTemps[] ={ 87.0, 39.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
+float targetTemps[] ={25.0, 25.0, 25.0 }; // Kefir  ferment: 25° C 
+//float targetTemps[] ={ 87.0, 39.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
 // float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
-
-unsigned long stageHoldTimes[] = {7*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
+unsigned long stageHoldTimes[] = { 24*60*minuteInMillis, 1*minuteInMillis,  1*minuteInMillis};
+//unsigned long stageHoldTimes[] = {7*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
 //unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 1*minuteInMillis }; //   test data
 
 
@@ -379,7 +380,7 @@ void onButtonDown() { // call back for button down
   Serial.println("btDown");
   if (currentStage == sInit){
     if ( p == -1 ){
-      setProgram(0); // set default program to 0, if not set yet.
+      setProgram(2); // set default program to 2 (Kefir), if not set yet.
     }  
     startStage(s0); // push button to kick off first stage
   } 
@@ -428,12 +429,13 @@ void printMenu(){
    Serial.println("sm30 - set time to 30 mim ");
    Serial.println("sp0  - Yogurt Maker");
    Serial.println("sp1  - Sous Vide");
+   Serial.println("sp2  - Kefir");
    Serial.println("dp   - debug print");
 }
 
 boolean checkProgram(){ 
  
-  if( p == 0 ){
+  if( p == 0 || p == 2){
     // Serial.print("start ");
     // Serial.println(getPName(p));
     return true;
@@ -458,7 +460,7 @@ boolean checkProgram(){
   }
   else
   {    
-    Serial.println("set program: sp0/sp1");
+    Serial.println("set program: sp0/sp1/sp3");
     //delay(5000);
     //TODO set default program after 10 checks
     return false;
@@ -487,7 +489,10 @@ void handleCommand( String cmd){
       setProgram( 0 );
     }
     else if (isCmd(cmd,"sp1")){
-      setProgram( 1 );
+      setProgram( 1 ); 
+    }
+    else if (isCmd(cmd,"sp2")){
+      setProgram( 2 );
     }else if (isCmd(cmd,"dp")){
        debugPrint = !debugPrint;
     }
@@ -596,7 +601,7 @@ void setTimeInMin(int m){
 
 
 void printStatus(){
-  if (p == 1 || p == 0 ){
+  if ( p >= 0 && p <= 2 ){
     Serial.println(getPName(p));
     // temp and time setting
     for(int i = 0; i < 2; i++){ 
@@ -856,7 +861,7 @@ void startCycle(){
 
     if (reachTargetTemp && (currentMillis - stageHoldStartTime) > stageHoldTime){// move to next stage
           
-      if ( p == 1 && currentStage == s0 ){ // sOUS vide
+      if (( p == 1 ||  p == 2 ) && currentStage == s0 ){ // sOUS vide or Kefir
         currentStage = sComplete; // FORCE stage to sComplete
         startStage(currentStage);        
         return;

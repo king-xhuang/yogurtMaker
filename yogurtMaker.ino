@@ -12,47 +12,48 @@
 #define ONE_WIRE_BUS 10  // temp sensor input pin
 
 
-const int RedLedPIN =  6;
-const int YellowLedPIN =  4;
-const int GreenLedPIN =  5;
-const int LedSize = 2;
+const byte RedLedPIN =  6;
+const byte YellowLedPIN =  4;
+const byte GreenLedPIN =  5;
+const byte LedSize = 2;
 
-const int BtPIN= 2;
-const int acSyncPIN =  3;
-const int powerLevelPIN =  7;
-const int RelayPIN = 8;
-const int BuzzerPIN = 9;
-const int WTCyclePIN = 11;  // cycle signal plus out
-const int WTReqPIN = 13;    // temp request conversion plus out
+const byte BtPIN= 2;
+const byte acSyncPIN =  3;
+const byte powerLevelPIN =  7;
+const byte RelayPIN = 8;
+const byte BuzzerPIN = 9;
+const byte WTCyclePIN = 11;  // cycle signal plus out
+const byte WTReqPIN = 13;    // temp request conversion plus out
 
-const int s0 = 0; // stage 0
-const int s1 = 1; // stage 1
-//const int s2 = 2; // stage 2
-const int sComplete = 2; // stage Complete
-const int sWarning = 5;  //  stage warning 
-const int sInit = -1; // initial stage
-volatile int currentStage = sInit; 
+const byte stage0 = 0; // stage 0
+const byte stage1 = 1; // stage 1 
+const byte sComplete = 2; // stage Complete
+const byte sWarning = 5;  //  stage warning 
+const byte sInit = 10; // initial stage
+volatile byte currentStage = sInit; 
 
-int p = -1; //program 0 - yogurt maker, 1 - sous vide
-const  String pNames[] = {"yogurt maker", "sous vide"};
+volatile int prog = -1; //program 0 - yogurt maker, 1 - sous vide
+// const char *const string_table[] = PROGMEM = {"yogurt maker", "sous vide"};
+// char buffer[15];  // make sure this is large enough for the largest string it must hold
+//const  String pNames[] PROGMEM = {"yogurt maker", "sous vide"};
 
 const float InvalidTemp = -127.00;
 volatile float tempC = InvalidTemp;
 
-const unsigned long minuteInMillis = 60000; 
-const unsigned long hourInMillis = 60*60000;
-const int stageLedPins[] = {RedLedPIN, YellowLedPIN, GreenLedPIN};
+const unsigned long minuteInMillis PROGMEM = 60000; 
+const unsigned long hourInMillis PROGMEM = 60*60000;
+const byte stageLedPins[] = {RedLedPIN, YellowLedPIN};
 
-float targetTemps[] ={ 87.0, 39.0, 40.0 }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
+float targetTemps[]  ={ 87.0, 39.0  }; //in C  yogert ferment: 36 ~ 43° C (96.8 ~ 109.4°F), pasteurizing milk: 71~83°C (160~180°F)  
 // float targetTemps[] ={ 50.5, 40.0, 30.0 }; //  test data
 
-unsigned long stageHoldTimes[] = {7*minuteInMillis, 7*60*minuteInMillis, 1*minuteInMillis };
+unsigned long stageHoldTimes[] = {7*minuteInMillis, 7*60*minuteInMillis  };
 //unsigned long stageHoldTimes[] = {10*minuteInMillis, 10*minuteInMillis, 1*minuteInMillis }; //   test data
 
 
-float delta = 0.5; 
-float deltaMax = 3.0;
-float deltaTemp = deltaMax;
+// float delta = 0.5; 
+// float deltaMax = 3.0;
+// float deltaTemp = deltaMax;
 
 volatile float lastTempDiff = 0.0;
 volatile float tempDiff = 0.0;
@@ -73,9 +74,9 @@ int ledState = LOW;             // ledState used to set the LED
 unsigned long ledPrevMillis = 0;         
 unsigned long ledInterval = 500; // led flush interval in millis
 
-volatile int buttonState = HIGH; 
-volatile int lastButtonState = HIGH;
-volatile int btDownCount = 0;
+volatile uint8_t  buttonState = HIGH; 
+volatile uint8_t  lastButtonState = HIGH;
+volatile uint8_t  btDownCount = 0;
 
 unsigned long btPrevMillis = 0;         
 unsigned long btInterval = 1000; // button push check interval in millis
@@ -83,7 +84,7 @@ unsigned long btInterval = 1000; // button push check interval in millis
 unsigned long tempPrevMillis = 0;
 unsigned long tempInterval = 500;  // tempreture check interval in millis
 volatile float targetTempC = 0;
-int stageLedPin = RedLedPIN;
+uint8_t stageLedPin = RedLedPIN;
 
 unsigned long stageStartTime = 0;
 unsigned long stageHoldStartTime = 0;
@@ -97,10 +98,10 @@ boolean debugPrint = false;
 boolean initSetTime = false;
 boolean initSetTemp = false;
 
-int initCheck = 0;
-int checkLimit = 20;
-int deltaChangeCount = 0;
-int deltaChangeCountInMin = 60;
+// int initCheck = 0;
+// int checkLimit = 20;
+// int deltaChangeCount = 0;
+// int deltaChangeCountInMin = 60;
 
 const uint8_t TickCountMax = 60; // 30 ac power line cycle
 const uint8_t HalfCycle = TickCountMax/2;
@@ -128,9 +129,9 @@ volatile short waitFor = WaitNone;
 volatile unsigned long reqTempTime = 0; 
 PrintEx PExSerial = Serial; //Wrap the Serial object in a PrintEx interface.
 
-double Vtest = 2505.0;  //# mv
-double Vbase = 507.0; // # mv
-double R     = 50.06;  // # kOhm
+const double Vtest = 2505.0;  //# mv
+const double Vbase = 507.0; // # mv
+const double R     = 50.06;  // # kOhm
 double Rntc  = 0.0;   //# kOhm
 double v2Rntc(double v ){
   double Vr = v + Vbase;
@@ -143,9 +144,9 @@ void resetAdcNTemp(){
    adcValue = AdcInvalidValue;
    tempC = InvalidTemp;
 }
-double A = 3.3170353688e-04;
-double B = 2.8188645815e-04;
-double C = -2.2394141349e-08;
+const double A = 3.3170353688e-04;
+const double B = 2.8188645815e-04;
+const double C = -2.2394141349e-08;
 double steinhart_hart_C(double R_ohm, double A, double B, double C) {
     double lnR = log(R_ohm);                // natural log
     double invT = A + B*lnR + C*lnR*lnR*lnR;
@@ -158,33 +159,35 @@ double steinhartHart_R2C(double R_ohm){
 float c2F(float C){
   return C*9/5+32;
 }
-float getDelta(){// detla is decresed when temp rising and close to the target
-  if (currentStage == 1) {
-    deltaTemp = 0.5;
-    return deltaTemp;
-  }
-  if ( !reachTargetTemp ){
-    deltaTemp = deltaMax;    // this make heating stop earlier at the initial heating phase.
-  }else{
-    deltaChangeCount++;
-    if(deltaChangeCount > deltaChangeCountInMin*1){// change deltaTemp every 3 minutes after reachTargetTemp
-      deltaChangeCount = 0;
-      deltaTemp = deltaTemp/2.0;    
-      if (deltaTemp < delta){
-        deltaTemp = delta;
-      }
-      Serial.print("current delta ");
-      Serial.println(deltaTemp);
-    }  
-  }
-  return deltaTemp; 
-}
+// float getDelta(){// detla is decresed when temp rising and close to the target
+//   if (currentStage == 1) {
+//     deltaTemp = 0.5;
+//     return deltaTemp;
+//   }
+//   if ( !reachTargetTemp ){
+//     deltaTemp = deltaMax;    // this make heating stop earlier at the initial heating phase.
+//   }else{
+//     deltaChangeCount++;
+//     if(deltaChangeCount > deltaChangeCountInMin*1){// change deltaTemp every 3 minutes after reachTargetTemp
+//       deltaChangeCount = 0;
+//       deltaTemp = deltaTemp/2.0;    
+//       if (deltaTemp < delta){
+//         deltaTemp = delta;
+//       }
+//       Serial.print("current delta ");
+//       Serial.println(deltaTemp);
+//     }  
+//   }
+//   return deltaTemp; 
+// }
 // program name
-String getPName(int p){
-  return pNames[p];
+String getPName(byte i){ 
+  if (i == 0) return "yogurt maker";
+  else return "sous vide";
+  
 }
 // set initial condition for a stage
-void startStage(int sid){  // start a new stage
+void startStage(byte sid){  // start a new stage
     
     String s = "#### start Stage ";
     s += String(sid);
@@ -193,11 +196,11 @@ void startStage(int sid){  // start a new stage
       heatingTrend = HeatingTrendNone;
       heaterOn(false);	
       if(sid == sInit) {
-        Serial.println("push button to start");
+        Serial.println(F("push button to start" ));
       }
       else if (sid == sComplete ||  sid == sWarning ) {  
-        if (sid == sComplete) Serial.println("##### program well done #####");    
-        else  Serial.println("##### program end with Warning !!! #####");  
+        if (sid == sComplete) Serial.println(F("##### program well done #####" ));    
+        else  Serial.println(F("##### program end with Warning !!! #####" ));  
 
         currentStage = sid;  
         setBuzzer(true);    
@@ -207,12 +210,12 @@ void startStage(int sid){  // start a new stage
     }
     else // working stages
     {         
-      for (int i = 0; i < LedSize; i++){
+      for (byte i = 0; i < LedSize; i++){
         digitalWrite( stageLedPins[i], LOW);
       }      
-      if(sid == s0){
+      if(sid == stage0){
         heatingTrend = HeatingTrendRise;
-      }else if(sid == s1 && p == 0){ // yogurt maker stage 1
+      }else if(sid == stage1 && prog == 0){ // yogurt maker stage 1
         heatingTrend = HeatingTrendFall;
       }
       reachTargetTemp = false;
@@ -223,12 +226,12 @@ void startStage(int sid){  // start a new stage
       stageLedPin = stageLedPins[sid];
       setLeds();
       setBuzzer(true);
-      Serial.print( "target temp: ");
+      Serial.print(F("target temp: " ));
       Serial.print(String(targetTempC));
-      Serial.println(" C");
-      Serial.print("hold time: ");
+      Serial.println(F(" C"));
+      Serial.print(F( "hold time: "));
       Serial.print(stageHoldTime/minuteInMillis);  
-      Serial.println(" minutes");               
+      Serial.println(F(" minutes" ));               
 	}
 }
 
@@ -250,13 +253,13 @@ void setBuzzer(boolean on){
 }
 
 void setLeds(){
-  for (int i = 0; i < LedSize; i++){
+  for (byte i = 0; i < LedSize; i++){
     if (i < currentStage) digitalWrite( stageLedPins[i], HIGH);
   }
 }
 
 boolean isWorkStage(int sid){
-  return (sid < sComplete && sid > sInit);
+  return (sid  == stage0 || sid  == stage1 );
 }
 
 boolean isDone(){
@@ -268,13 +271,13 @@ void adc2Temp(int32_t adcValue){
   tempC = steinhartHart_R2C(r);
   unsigned long convTime = millis() - reqTempTime; 
   if(debugPrint){
-      Serial.print("adc = ");
+      Serial.print(F("adc = " ));
     Serial.print(adcValue);
-    Serial.print(",  r = ");
+    Serial.print(F(",  r = " ));
     Serial.print(r);
-     Serial.print(",  tempC = ");
+     Serial.print(F(",  tempC = " ));
     Serial.print(tempC);
-    Serial.print(",  time = ");
+    Serial.print(F(",  time = " ));
     Serial.println(convTime);
   }
  }
@@ -283,14 +286,14 @@ void setup() {
   // start serial port
   Serial.begin(115200);
   
-  Serial.println("#### yogurt maker powered ON ####");
+  Serial.println(F("#### yogurt maker powered ON ####"));
   if (!mcp.begin(0x68, &Wire)) { 
-    Serial.println("Failed to find MCP3421 chip");
+    Serial.println(F("Failed to find MCP3421 chip" ));
     while (1) {
       delay(10); // Avoid a busy-wait loop
     }
   }
-  Serial.println("MCP3421 Found!");
+  Serial.println(F("MCP3421 Found!"));
   // Options: GAIN_1X, GAIN_2X, GAIN_4X, GAIN_8X
   mcp.setGain(GAIN_1X); 
 
@@ -313,11 +316,11 @@ void setup() {
   tempC = steinhartHart_R2C(r);
   unsigned long convTime = millis() - reqTempTime; 
   PExSerial.printf("first conversion time = %u  \n", convTime );  
-   Serial.print("adc = ");
+   Serial.print(F("adc = " ));
   Serial.print(adcValue);
-   Serial.print(",  r = ");
+   Serial.print(F(",  r = " ));
   Serial.print(r);
-  Serial.print(",  tempC = ");
+  Serial.print(F( ",  tempC = "));
   Serial.println(tempC);
   printTemperature(tempC);
 
@@ -360,7 +363,7 @@ void setup() {
   tempC = InvalidTemp;
 
   // reserve 200 bytes for the inputString:
-  inputString.reserve(200);
+  inputString.reserve(20);
 
   //Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
   //Timer1.pwm(9, 512);                // setup pwm on pin 9, 50% duty cycle
@@ -368,7 +371,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
   attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v3.0 9/29/25 final, push button to start ###");
+  Serial.println(F("### v3.1 11/25/25 final, push button to start ###" ));
 }
 
 void onButtonDown() { // call back for button down
@@ -376,12 +379,13 @@ void onButtonDown() { // call back for button down
   if (isRebounce()){
     return;
   }
-  Serial.println("btDown");
+  Serial.print(F("btDown\nprog ="));
+  Serial.println(prog);
   if (currentStage == sInit){
-    if ( p == -1 ){
+    if ( prog == -1 ){
       setProgram(0); // set default program to 0, if not set yet.
     }  
-    startStage(s0); // push button to kick off first stage
+    startStage(stage0); // push button to kick off first stage
   } 
   else{
     setBuzzer(false);
@@ -409,10 +413,8 @@ void serialEvent() {
     // if the incoming character is a newline, set a flag so the main loop can
     // do something about it:
     if (inChar == '\n') {
-      //stringComplete = true;
-      String cmd = inputString;
-      handleCommand(cmd);
-      inputString = "";
+      stringComplete = true; 
+     
     }else if (inChar == 'A') {
       inputString = "";
     }
@@ -421,24 +423,25 @@ void serialEvent() {
 } 
 
 void printMenu(){
-   Serial.println("m    - menu");
-   Serial.println("ss   - status");
-   Serial.println("std0.7 - tempreture delta to 0.7 C");
-   Serial.println("st30 - tempreture to 30 C");
-   Serial.println("sm30 - set time to 30 mim ");
-   Serial.println("sp0  - Yogurt Maker");
-   Serial.println("sp1  - Sous Vide");
-   Serial.println("dp   - debug print");
+   Serial.println(F("m    - menu"));
+   Serial.println(F("ss   - status"));
+   Serial.println(F("std0.7 - tempreture delta to 0.7 C"));
+   Serial.println(F("st30 - tempreture to 30 C") );
+   Serial.println(F("sm30 - set time to 30 mim "));
+   Serial.println(F("sp0  - Yogurt Maker"));
+   Serial.println(F( "sp1  - Sous Vide")  );
+   Serial.println(F( "sp2  - Kefir"));
+   Serial.println(F("dp   - debug print"));
 }
 
 boolean checkProgram(){ 
  
-  if( p == 0 ){
+  if( prog == 0 ){
     // Serial.print("start ");
     // Serial.println(getPName(p));
     return true;
   }
-  else if (p == 1 )
+  else if (prog == 1 )
   {
     if (initSetTime && initSetTemp){
       // Serial.print("start ");
@@ -467,9 +470,9 @@ boolean checkProgram(){
 
 
 void handleCommand( String cmd){
-    Serial.print("you say:");
+    Serial.print(F("you say:" ));
     Serial.println(cmd);
-    printString(cmd);
+    //printString(cmd);
 
     if (isCmd(cmd, "m")){
       printMenu();
@@ -478,9 +481,9 @@ void handleCommand( String cmd){
     }else if (isCmd(cmd, "sm")){
       setTimeInMin(getInt(cmd.substring(2)));
     }
-    else if (isCmd(cmd, "std")){
-      setHeatingTempDelta(getFloat(cmd.substring(3)));
-    }
+    // else if (isCmd(cmd, "std")){
+    //   setHeatingTempDelta(getFloat(cmd.substring(3)));
+    // }
     else if (isCmd(cmd, "st")){
       setHeatingTemp(getFloat(cmd.substring(2)));
     }else if (isCmd(cmd, "sp0")){
@@ -488,11 +491,22 @@ void handleCommand( String cmd){
     }
     else if (isCmd(cmd,"sp1")){
       setProgram( 1 );
-    }else if (isCmd(cmd,"dp")){
+    }
+    else if (isCmd(cmd,"sp2")){
+      setProgram( 1 );
+      setHeatingTemp(25);
+      setTimeInMin(24*60);
+    }
+    else if (isCmd(cmd,"dp")){
        debugPrint = !debugPrint;
     }
+    else if (isCmd(cmd,"sp11")){
+      setProgram( 1 );
+      setHeatingTemp(25);
+      setTimeInMin(10);
+    }
     else{
-      Serial.print("unknown command ");
+      Serial.print(F("unknown command " ));
       Serial.println( cmd);
       printMenu();
     }
@@ -508,9 +522,9 @@ int getInt(String s){
 
 float getFloat(String floatAsStr){   
  // String n = s.substring(s.length()-1);
-  Serial.print("getFloat   ");
+  Serial.print(F("getFloat   " ));
   Serial.print(floatAsStr.length());
-  Serial.print(", val ");
+  Serial.print(F(", val " ));
   Serial.println(floatAsStr);
   float f = floatAsStr.toFloat();
   Serial.println(f);
@@ -520,7 +534,7 @@ float getFloat(String floatAsStr){
 int getNum(String s){
   Serial.println(s.length());
   String n = "";
-  for (int i = 0;  i < (s.length()); i++){
+  for (unsigned int i = 0;  i < (s.length()); i++){
     int c = s.charAt(i);
     if (isDigit(c)  ){
       n += (char)c;        
@@ -553,51 +567,51 @@ boolean isCmd(String cmd, String c){
   // return i >= 0;
   return cmd.startsWith(c);
 }
-void printString(String s){
-  for (int i = 0; i++; i < s.length()){
-      Serial.print("#");
-      Serial.println(s.charAt(i));
+// void printString(String s){
+//   for (int i = 0; i++; i < s.length()){
+//       Serial.print("#");
+//       Serial.println(s.charAt(i));
      
-  } 
-}
+//   } 
+// }
 
 void setProgram( int i){
-  p = i;
+  prog = i;
 }
-void setHeatingTempDelta(float t){
-  Serial.print("setHeatingTempDelta ");
-  Serial.println(t);
-  delta = t;     
-}
+// void setHeatingTempDelta(float t){
+//   Serial.print("setHeatingTempDelta ");
+//   Serial.println(t);
+//   delta = t;     
+// }
 void setHeatingTemp(float t){
   Serial.print("setHeatingTemp ");
   Serial.println(t);
-  if (p == 1){
+  if (prog == 1){
     //float temp = float(t);    
     targetTemps[0] = t;
     targetTemps[1] = 0.0;
-    targetTemps[2] = 0.0; 
+   
     initSetTemp = true;
-  }else Serial.println("cannot set temp, enter 'sp1' to set p =1 first");
+  }else Serial.println(F("cannot set temp, enter 'sp1' to set p =1 first" ));
 }
 
 void setTimeInMin(int m){
-  Serial.print("setTimeInMin ");
+  Serial.print(F("setTimeInMin "));
   Serial.println(m);
   Serial.println(" min");
-  if (p == 1){
+  if (prog == 1){
     stageHoldTimes[0] = m*minuteInMillis;
     stageHoldTimes[1] = 1000; 
-    stageHoldTimes[2] = 1000;
+   
     initSetTime = true;
-  }else Serial.println("cannot set time, set p =1 first");
+  }else Serial.println(F("cannot set time, set p =1 first" ));
 }
 
 
 
 void printStatus(){
-  if (p == 1 || p == 0 ){
-    Serial.println(getPName(p));
+  if (prog == 1 || prog == 0 ){
+    Serial.println(getPName(prog));
     // temp and time setting
     for(int i = 0; i < 2; i++){ 
       String s = "stage "; 
@@ -609,26 +623,26 @@ void printStatus(){
       s += " min";    
       Serial.println(s);
     }
-    Serial.print("heating trend:  ");
+    Serial.print(F("heating trend:  " ));
     if (heatingTrend == HeatingTrendRise){
-      Serial.println(" Rise");
+      Serial.println(F(" Rise" ));
     }else if (heatingTrend == HeatingTrendHold){
-      Serial.print(" Hold temp is ");
+      Serial.print(F(" Hold temp is "));
       if (tempDiff >= lastTempDiff){ 
-        Serial.println("DOWN");
+        Serial.println(F("DOWN" ));
       }else{
-        Serial.println("UP");
+        Serial.println(F("UP" ));
       }
     } 
     else if (heatingTrend == HeatingTrendFall){
-      Serial.println(" Fall");
+      Serial.println(F(" Fall"));
     } 
     else{
-       Serial.println(" None");
+       Serial.println(F(" None" ));
     }
-    Serial.print(" power level ");
+    Serial.print(F(" power level " ));
     Serial.println(heatingLevel);
-    Serial.print("Power on ");
+    Serial.print(F("Power on " ));
     if(heatingTrend == HeatingTrendRise){
       Serial.println(digitalRead(RelayPIN));
     }else{
@@ -640,22 +654,29 @@ void printStatus(){
       int timePassed =  (millis() - stageStartTime)/minuteInMillis;
       // current stage, temp, time passed.
       printTemperature(tempC);
-      Serial.print("Time passed = ");
+      Serial.print(F("Time passed = "));
       Serial.print(timePassed);
-      Serial.println( " minutes"); 
+      Serial.println(F( " minutes")); 
     }else{
-      Serial.print("work stage ");
+      Serial.print(F( "work stage "));
       Serial.println(currentStage);
     }
 
   }else{
-    Serial.print("program: ");
-    Serial.println(p);
+    Serial.print(F( "program: "));
+    Serial.println(prog);
   }
 }
 
 
-void loop() {
+void loop() { 
+       
+  if (stringComplete){
+    handleCommand(inputString);
+    inputString = "";
+    stringComplete = false; 
+  }
+   
   // if(waitFor == WaitAdcReq){
   //   Serial.println("startOneShotConversion");
   //   reqTempTime = millis();
@@ -753,19 +774,19 @@ void testDone(){
   checkDone();
 }
 
-void testBlink(){
+// void testBlink(){
    
-  while(true){
-  checkButton();
-  blinkStageLed();
-  }
-}
-void testBlink2(){
-    checkTemp();
-  checkButton();
-  blinkStageLed();
+//   while(true){
+//   checkButton();
+//   blinkStageLed();
+//   }
+// }
+// void testBlink2(){
+//     checkTemp();
+//   checkButton();
+//   blinkStageLed();
   
-}
+// }
   
   
 void testRelay(){ 
@@ -779,7 +800,7 @@ void testRelay(){
 
 void checkDone(){  
   if (isDone()){
-    Serial.println("##### program done #####");
+    Serial.println(F("##### program done #####" ));
      while(true){
       setDoneSignal();
      }
@@ -813,7 +834,7 @@ void checkDone(){
       //   delay(200);
       // }
     }
-    else if (currentStage >= 0 && currentStage < 3){ // the current working stage led blinking
+    else if (currentStage == stage0 || currentStage == stage1){ // the current working stage led blinking
 	   unsigned long currentMillis = millis();
 	   if(currentMillis - ledPrevMillis > ledInterval) {
 		    ledPrevMillis = currentMillis;   
@@ -856,17 +877,17 @@ void startCycle(){
 
     if (reachTargetTemp && (currentMillis - stageHoldStartTime) > stageHoldTime){// move to next stage
           
-      if ( p == 1 && currentStage == s0 ){ // sOUS vide
+      if ( prog == 1 && currentStage == stage0 ){ // sOUS vide
         currentStage = sComplete; // FORCE stage to sComplete
         startStage(currentStage);        
         return;
-      }else if ( p == 0 ){ // yogurt maker
-        if(currentStage == s1 ){ 
+      }else if ( prog == 0 ){ // yogurt maker
+        if(currentStage == stage1 ){ 
           currentStage = sComplete; // FORCE stage tosComplete
           startStage(currentStage);
           return;
-        }else if(currentStage == s0 ){
-          currentStage = s1;
+        }else if(currentStage == stage0 ){
+          currentStage = stage1;
           startStage(currentStage);
         }
         else return;
@@ -885,13 +906,13 @@ void startCycle(){
     
     // get sensor temp and reset heating level
     if(tempDiff <= 0.0){ // temp higher than target
-      if (currentStage == s0 && !reachTargetTemp){
+      if (currentStage == stage0 && !reachTargetTemp){
         reachTarget();
       }
       heatingLevel = 0;// TODO use PID ???
       heaterOn(false); // TODO use PID ???
     }else{ // temp lower than target 
-      if (currentStage > s0 && !reachTargetTemp){ // temp falling to target 
+      if (currentStage > stage0 && !reachTargetTemp){ // temp falling to target 
         reachTarget();
       }    
       //TODO use PID ??? 
@@ -899,7 +920,7 @@ void startCycle(){
       if(heatingTrend == HeatingTrendRise){
         if (tempDiff <=  0.7){ 
            heatingTrend = HeatingTrendHold;
-           Serial.print("### Turned Relay Off !!! ####");
+           Serial.print(F("### Turned Relay Off !!! ####"));
            heatingLevel = 0;
            heaterOn(false);
         }else{
@@ -953,9 +974,9 @@ void startCycle(){
     
   void reachTarget(){
   	reachTargetTemp = true;
-    Serial.print("#### stage ");
+    Serial.print(F("#### stage "));
     Serial.print(String(currentStage));
-    Serial.print(" reach target temp ");  
+    Serial.print(F(" reach target temp " ));  
     Serial.println(String(targetTempC));           
     stageHoldStartTime = millis();
     heatingTrend = HeatingTrendHold; 
@@ -987,15 +1008,15 @@ void startCycle(){
 void printTemperature(float tempC)
 {  
   if (tempC == InvalidTemp) {
-    Serial.println("Error getting temperature");
+    Serial.println(F("Error getting temperature" ));
   } else {
-    Serial.print("currentStage=");
+    Serial.print(F("currentStage="));
     Serial.println(currentStage);
-    Serial.print("C: ");
+    Serial.print(F("C: " ));
     Serial.print(tempC);
-    Serial.print(" F: ");
+    Serial.print(F(" F: " ));
     Serial.println(c2F(tempC)); 
-    Serial.print("reach Target Temp ");
+    Serial.print(F("reach Target Temp " ));
     Serial.println(reachTargetTemp);    
   }
   Serial.println("");
@@ -1011,29 +1032,29 @@ bool isRebounce(){
     return true;
   }
 }
- void checkButton(){
-   unsigned long currentMillis = millis();
-    if(currentMillis - btPrevMillis > btInterval) {
-      btPrevMillis = currentMillis;   
+//  void checkButton(){
+//    unsigned long currentMillis = millis();
+//     if(currentMillis - btPrevMillis > btInterval) {
+//       btPrevMillis = currentMillis;   
        
-      if (isButtonDown()){ 
-        // start the program or stop the buzzer
-        if (currentStage == -1){
-          startStage(0); // push button to kick off first stage
+//       if (isButtonDown()){ 
+//         // start the program or stop the buzzer
+//         if (currentStage == -1){
+//           startStage(0); // push button to kick off first stage
         
-        } 
-        else{
-          setBuzzer(false);
-        }       
-      }
-    }
- }
+//         } 
+//         else{
+//           setBuzzer(false);
+//         }       
+//       }
+//     }
+//  }
 
  void dpBtDown(){
     // toggleLed(GreenLedPIN);
-      Serial.print("Button down ");
+      Serial.print(F( "Button down "));
       Serial.print(btDownCount);
-      Serial.print("\n\r");
+      Serial.print(F("\n\r" ));
  }
  
  void dpLn(String ss){

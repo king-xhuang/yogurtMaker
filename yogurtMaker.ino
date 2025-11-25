@@ -576,7 +576,10 @@ boolean isCmd(String cmd, String c){
 // }
 
 void setProgram( int i){
+   
   prog = i;
+  Serial.print(F("setProgram =") );
+  Serial.println(prog);
 }
 // void setHeatingTempDelta(float t){
 //   Serial.print("setHeatingTempDelta ");
@@ -597,7 +600,7 @@ void setHeatingTemp(float t){
 
 void setTimeInMin(int m){
   Serial.print(F("setTimeInMin "));
-  Serial.println(m);
+  Serial.print(m);
   Serial.println(" min");
   if (prog == 1){
     stageHoldTimes[0] = m*minuteInMillis;
@@ -627,7 +630,7 @@ void printStatus(){
     if (heatingTrend == HeatingTrendRise){
       Serial.println(F(" Rise" ));
     }else if (heatingTrend == HeatingTrendHold){
-      Serial.print(F(" Hold temp is "));
+      Serial.print(F(" Hold,  temp is "));S
       if (tempDiff >= lastTempDiff){ 
         Serial.println(F("DOWN" ));
       }else{

@@ -91,7 +91,7 @@ unsigned long stageHoldStartTime = 0;
 volatile boolean reachTargetTemp = false;
 unsigned long stageHoldTime = 1;
 
-String inputString = "";         // a String to hold incoming data
+String  inputString= "";         // a String to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
 boolean debugPrint = false;
 
@@ -361,7 +361,7 @@ void setup() {
   tempC = InvalidTemp;
 
   // reserve 200 bytes for the inputString:
-  inputString.reserve(200);
+  inputString.reserve(20);
 
   //Timer1.initialize(10000);         // initialize timer1, and set a 10 ms   period
   //Timer1.pwm(9, 512);                // setup pwm on pin 9, 50% duty cycle
@@ -369,7 +369,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BtPIN), onButtonDown, FALLING );
   attachInterrupt(digitalPinToInterrupt(acSyncPIN), onMainLineSync, RISING );
 
-  Serial.println("### v3.0 9/29/25 final, push button to start ###");
+  Serial.println("### v3.1 11/24/25 final, push button to start ###");
 }
 
 void onButtonDown() { // call back for button down
@@ -378,6 +378,10 @@ void onButtonDown() { // call back for button down
     return;
   }
   Serial.println("btDown");
+   Serial.print("p=");
+   Serial.println(p);
+   Serial.print("currentStage=");
+   Serial.println(currentStage);
   if (currentStage == sInit){
     if ( p == -1 ){
       setProgram(2); // set default program to 2 (Kefir), if not set yet.
@@ -405,19 +409,14 @@ void serialEvent() {
   while (Serial.available()) {
     // get the new byte:
     char inChar = (char)Serial.read();
+    //Serial.println(inChar);
     // add it to the inputString:
     inputString += inChar;
-    // if the incoming character is a newline, set a flag so the main loop can
-    // do something about it:
-    if (inChar == '\n') {
-      //stringComplete = true;
-      String cmd = inputString;
-      handleCommand(cmd);
-      inputString = "";
-    }else if (inChar == 'A') {
-      inputString = "";
-    }
-
+    if (inChar == '\n'){ 
+      stringComplete = true; 
+    } 
+     
+       
   }
 } 
 
@@ -468,33 +467,34 @@ boolean checkProgram(){
 }
 
 
-void handleCommand( String cmd){
+void handleCommand(String  cmd){
     Serial.print("you say:");
-    Serial.println(cmd);
-    printString(cmd);
-
-    if (isCmd(cmd, "m")){
+    Serial.print(inputString.length());
+    Serial.println(inputString); 
+     
+    if (inputString.startsWith("m")){ //isCmd(cmd, "m")){
       printMenu();
-    }else if (isCmd(cmd, "ss")){
+    }else if (inputString.startsWith("ss")){ //(isCmd(cmd, "ss")){
       printStatus();
-    }else if (isCmd(cmd, "sm")){
+    }else if (inputString.startsWith("sm")){//(isCmd(cmd, "sm")){
       setTimeInMin(getInt(cmd.substring(2)));
     }
-    else if (isCmd(cmd, "std")){
+    else if (inputString.startsWith("std")){//(isCmd(cmd, "std")){
       setHeatingTempDelta(getFloat(cmd.substring(3)));
     }
-    else if (isCmd(cmd, "st")){
+    else if  (inputString.startsWith("st")){//(isCmd(cmd, "st")){
       setHeatingTemp(getFloat(cmd.substring(2)));
-    }else if (isCmd(cmd, "sp0")){
+    }else if  (inputString.startsWith("sp0")){// (isCmd(cmd, "sp0")){
       setProgram( 0 );
     }
-    else if (isCmd(cmd,"sp1")){
+    else if  (inputString.startsWith("sp1")){//(isCmd(cmd,"sp1")){
       setProgram( 1 ); 
     }
-    else if (isCmd(cmd,"sp2")){
+    else if  (inputString.startsWith("sp2")){//(isCmd(cmd,"sp2")){
       setProgram( 2 );
-    }else if (isCmd(cmd,"dp")){
+    }else if  (inputString.startsWith("dp")){//(isCmd(cmd,"dp")){
        debugPrint = !debugPrint;
+    
     }
     else{
       Serial.print("unknown command ");
@@ -547,16 +547,18 @@ int getNum(String s){
   Serial.println(n);
   return n.toInt();
 }
-boolean isCmd(String cmd, String c){
-  // Serial.print(cmd);
-  // Serial.print(" indexOf ");
-  // Serial.print(c);
-  // Serial.print(" = ");
-  // int i = cmd.indexOf(c);
-  // Serial.println(i);
-  // //Serial.println(cmd.substring(i));
+unsigned isCmd(String cc, const String c){
+  //String cmd =inputString;
+  Serial.print("cmd=");
+  Serial.println(inputString);
+  Serial.print(" indexOf ");
+  Serial.print(c);
+  Serial.print(" = ");
+  int i = inputString.startsWith(c); //cmd.indexOf(c);
+  Serial.println(i);
+  //Serial.println(cmd.substring(i));
   // return i >= 0;
-  return cmd.startsWith(c);
+  return inputString.startsWith(c);
 }
 void printString(String s){
   for (int i = 0; i++; i < s.length()){
@@ -601,7 +603,7 @@ void setTimeInMin(int m){
 
 
 void printStatus(){
-  if ( p >= 0 && p <= 2 ){
+  if ( p == 0 || p == 1 || p == 2 ){
     Serial.println(getPName(p));
     // temp and time setting
     for(int i = 0; i < 2; i++){ 
@@ -661,6 +663,14 @@ void printStatus(){
 
 
 void loop() {
+  if ( stringComplete ){ 
+    //String cmd = ;
+    Serial.println(inputString);
+    handleCommand(inputString);
+    stringComplete = false;
+    inputString = ""; 
+  }
+     
   // if(waitFor == WaitAdcReq){
   //   Serial.println("startOneShotConversion");
   //   reqTempTime = millis();

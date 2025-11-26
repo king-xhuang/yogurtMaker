@@ -434,39 +434,39 @@ void printMenu(){
    Serial.println(F("dp   - debug print"));
 }
 
-boolean checkProgram(){ 
+// boolean checkProgram(){ 
  
-  if( prog == 0 ){
-    // Serial.print("start ");
-    // Serial.println(getPName(p));
-    return true;
-  }
-  else if (prog == 1 )
-  {
-    if (initSetTime && initSetTemp){
-      // Serial.print("start ");
-      // Serial.println(getPName(p));
-      return true;
-    } 
-    if (!initSetTime){
-      Serial.println("set time: sm");
+//   if( prog == 0 ){
+//     // Serial.print("start ");
+//     // Serial.println(getPName(p));
+//     return true;
+//   }
+//   else if (prog == 1 )
+//   {
+//     if (initSetTime && initSetTemp){
+//       // Serial.print("start ");
+//       // Serial.println(getPName(p));
+//       return true;
+//     } 
+//     if (!initSetTime){
+//       Serial.println("set time: sm");
         
-    } 
-    if(!initSetTemp){
-      Serial.println("set Temp: st");
+//     } 
+//     if(!initSetTemp){
+//       Serial.println("set Temp: st");
       
-    }
-   // delay(5000);
-    return false;  
-  }
-  else
-  {    
-    Serial.println("set program: sp0/sp1");
-    //delay(5000);
-    //TODO set default program after 10 checks
-    return false;
-  } 
-}
+//     }
+//    // delay(5000);
+//     return false;  
+//   }
+//   else
+//   {    
+//     Serial.println("set program: sp0/sp1");
+//     //delay(5000);
+//     //TODO set default program after 10 checks
+//     return false;
+//   } 
+// }
 
 
 void handleCommand( String cmd){
@@ -474,7 +474,7 @@ void handleCommand( String cmd){
     Serial.println(cmd);
     //printString(cmd);
 
-    if (isCmd(cmd, "m")){
+    if (isCmd(cmd, F("m" ))){
       printMenu();
     }else if (isCmd(cmd, "ss")){
       printStatus();
@@ -500,10 +500,10 @@ void handleCommand( String cmd){
     else if (isCmd(cmd,"dp")){
        debugPrint = !debugPrint;
     }
-    else if (isCmd(cmd,"sp11")){
+    else if (isCmd(cmd,"sp3")){
       setProgram( 1 );
-      setHeatingTemp(25);
-      setTimeInMin(10);
+      setHeatingTemp(25); 
+      setTimeInMin(10); 
     }
     else{
       Serial.print(F("unknown command " ));
@@ -513,9 +513,9 @@ void handleCommand( String cmd){
 }
 
 int getInt(String s){  
-  Serial.print("getInt len ");
+  Serial.print(F("getInt len " ));
   Serial.print(s.length());
-  Serial.print(", val ");
+  Serial.print(F(", val " ));
   Serial.println(s);
   return s.toInt();
 }
@@ -550,9 +550,9 @@ int getNum(String s){
   }
   dpLn("end");  
   //String n = s.substring(2, s.length()-1);
-  Serial.print("getNum len ");
+  Serial.print(F( "getNum len "));
   Serial.print(n.length());
-  Serial.print(", val ");
+  Serial.print(F( ", val "));
   Serial.println(n);
   return n.toInt();
 }
@@ -587,7 +587,7 @@ void setProgram( int i){
 //   delta = t;     
 // }
 void setHeatingTemp(float t){
-  Serial.print("setHeatingTemp ");
+  Serial.print(F( "setHeatingTemp "));
   Serial.println(t);
   if (prog == 1){
     //float temp = float(t);    
@@ -601,7 +601,7 @@ void setHeatingTemp(float t){
 void setTimeInMin(int m){
   Serial.print(F("setTimeInMin "));
   Serial.print(m);
-  Serial.println(" min");
+  Serial.println(F(" min" ));
   if (prog == 1){
     stageHoldTimes[0] = m*minuteInMillis;
     stageHoldTimes[1] = 1000; 
@@ -617,20 +617,20 @@ void printStatus(){
     Serial.println(getPName(prog));
     // temp and time setting
     for(int i = 0; i < 2; i++){ 
-      String s = "stage "; 
+      String s = F("stage " ); 
       s += String(i);
-      s += ", Temp ";
+      s += F(", Temp " );
       s += targetTemps[i]; //String(targetTemps[i]);
-      s += ", time ";       
+      s += F(", time " );       
       s += stageHoldTimes[i]/minuteInMillis; //String(stageHoldTimes[i]/minuteInMillis);
-      s += " min";    
+      s += F(" min" );    
       Serial.println(s);
     }
     Serial.print(F("heating trend:  " ));
     if (heatingTrend == HeatingTrendRise){
       Serial.println(F(" Rise" ));
     }else if (heatingTrend == HeatingTrendHold){
-      Serial.print(F(" Hold,  temp is "));S
+      Serial.print(F(" Hold,  temp is "));
       if (tempDiff >= lastTempDiff){ 
         Serial.println(F("DOWN" ));
       }else{
